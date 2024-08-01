@@ -1,20 +1,45 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func main() {
-	err := http.ListenAndServe(
-		":8080",
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "Hello, saretnirasn")
+	fmt.Println("Starting server on port 8080")
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	server := &http.Server{
+		Addr: ":8080",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, "hello")
 		}),
-	)
-	if err != nil {
-		fmt.Fprintln(os.Stdout, []any{"Error starting server: ", err}...)
+	}
+
+	go func() {
+		err := server.ListenAndServe()
+		if err != http.ErrServerClosed {
+			fmt.Fprintln(os.Stdout, []any{"Error starting server: ", err}...)
+		}
+	}()
+
+	<-quit
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		fmt.Fprintln(os.Stdout, []any{"Error shutting down server: ", err}...)
 		os.Exit(1)
 	}
+	fmt.Println("Pretending to do some cleanup work... for 14 seconds")
+	time.Sleep(14 * time.Second)
+	fmt.Println("Server stopped")
 }

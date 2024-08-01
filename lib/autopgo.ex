@@ -33,7 +33,8 @@ defmodule Autopgo.Worker do
   end
 
   def handle_info({port, {:data, data}}, state) do
-    dbg(data)
+    # pass logs from the port to the logger
+    Logger.info("Port: #{data}")
     {:noreply, state}
   end
 
