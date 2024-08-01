@@ -8,8 +8,7 @@ defmodule Autopgo.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: Autopgo.Worker.start_link(arg)
-      # {Autopgo.Worker, arg}
+      {Autopgo.Worker, %{binary_path: "app/app", recompile_command: "go build -o app/app app/main.go"}},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
