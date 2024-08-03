@@ -17,6 +17,7 @@ defmodule Autopgo.Application do
         liveness_url: "http://localhost:8080/check",
         readiness_url: "http://localhost:8080/check",
       }},
+      {Autopgo.LoopingController, %{}},
       {Bandit, plug: ServerPlug},
     ]
 

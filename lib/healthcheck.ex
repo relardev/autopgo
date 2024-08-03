@@ -37,7 +37,7 @@ defmodule Healthchecks do
   def handle_call(:readiness, _from, %{mode: :normal} = state) do
     case check_endpoint(state.readiness_url) do
       :ok -> {:reply, :ok, state}
-      {:error, _} -> {:reply, {:error, "readiness check failed"}, state}
+      {:error, _} -> {:reply, {:error, "readiness check failed - not started yet"}, state}
     end
   end
 
@@ -52,7 +52,7 @@ defmodule Healthchecks do
 
   def handle_call(:readiness, _from, %{mode: :shutting_down} = state) do
     state.notify_fn.()
-    {:reply, {:error, "readiness check failed"}, %{state | notify_fn: &no_notify_fn/0}}
+    {:reply, {:error, "readiness check failed - shutting down"}, %{state | notify_fn: &no_notify_fn/0}}
   end
 
   def handle_call({:mode, :starting_up}, _from, state) do
@@ -66,7 +66,7 @@ defmodule Healthchecks do
   end
 
   def handle_call(:readiness, _from, %{mode: :starting_up} = state) do
-    {:reply, {:error, "readiness checked failed"}, state}
+    {:reply, {:error, "readiness check failed - starting up"}, state}
   end
 
   def handle_info(:check_if_ready, %{mode: :starting_up} = state) do

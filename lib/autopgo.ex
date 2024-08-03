@@ -1,9 +1,10 @@
 defmodule Autopgo do
-  def gather_profile do
-    GenServer.cast(Autopgo.Worker, :gather_profile)
+  def gather_profile(notify_fn \\ fn _ -> :ok end) do
+    GenServer.cast(Autopgo.Worker, {:gather_profile, notify_fn})
   end
-  def recompile do
-    GenServer.cast(Autopgo.Worker, :recompile)
+
+  def recompile(notify_fn \\ fn _ -> :ok end) do
+    GenServer.cast(Autopgo.Worker, {:recompile, notify_fn})
   end
 end
 
@@ -19,22 +20,35 @@ defmodule Autopgo.Worker do
   def init(args) do
     Logger.info("Starting port")
     port = Port.open({:spawn, args.binary_path}, [:binary, :exit_status])
-    {:ok, Map.merge(args, %{port: port})}
+    {:ok, Map.merge(args, %{port: port, state: :waiting})}
   end
 
-  def handle_cast(:gather_profile, state) do
+  def handle_cast({:gather_profile, notify_fn}, state) do
     Logger.info("Gathering profile")
-    timestamp = System.os_time(:second)
-    [command | args]  = ~w(wget -O pprof/#{timestamp}.pprof #{state.profile_url})
+    case Healthchecks.readiness() do
+      :ok -> 
+        timestamp = System.os_time(:second)
+        [command | args]  = ~w(wget -O pprof/#{timestamp}.pprof #{state.profile_url})
 
-    {_, 0} = System.cmd(command, args)
+        {_, 0} = System.cmd(command, args)
 
-    Logger.info("Profile gathered")
+        Logger.info("Profile gathered")
+        notify_fn.(:ok)
 
+        {:noreply, state}
+      {:error, _} -> 
+        notify_fn.({:error, "readiness check failed"})
+        {:noreply, state}
+    end
+  end
+
+  def handle_cast({:recompile, notify_fn}, %{state: :compiling} = state) do
+    Logger.info("Already compiling")
+    notify_fn.({:error, "already compiling"})
     {:noreply, state}
   end
 
-  def handle_cast(:recompile, state) do
+  def handle_cast({:recompile, notify_fn}, %{state: :waiting} = state) do
     Logger.info("Recompiling...")
 
    files = File.ls!("pprof/")
@@ -51,6 +65,8 @@ defmodule Autopgo.Worker do
 
     File.write!("default.pprof", merged_profile_data)
 
+    dbg()
+
     Logger.info("Compiling")
     start_time = System.os_time(:millisecond)
     [command | args] = String.split(state.recompile_command)
@@ -62,7 +78,7 @@ defmodule Autopgo.Worker do
       GenServer.cast(Autopgo.Worker, :readiness_checked) 
     end)
 
-    {:noreply, state}
+    {:noreply, Map.merge(state, %{notify_fn: notify_fn, state: :compiling})}
   end
 
   def handle_cast(:readiness_checked, state) do
@@ -97,7 +113,9 @@ defmodule Autopgo.Worker do
     port = Port.open({:spawn, state.binary_path}, [:binary, :exit_status])
     Healthchecks.starting_up()
 
-    {:noreply, %{state | port: port}}
+    state.notify_fn.(:ok)
+
+    {:noreply, %{state | port: port, state: :waiting}}
   end
 
   def handle_info(msg, state) do
