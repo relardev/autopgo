@@ -7,6 +7,10 @@ defmodule Autopgo.Application do
 
   @impl true
   def start(_type, _args) do
+    File.rm_rf!("pprof")
+    File.rm_rf!("default.pprof")
+    File.mkdir_p!("pprof")
+
     children = [
       {Autopgo.Worker, %{
         binary_path: "app/app", 
@@ -25,5 +29,10 @@ defmodule Autopgo.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Autopgo.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  def terminate(_reason, _state) do
+    Logger.info("Shutting down")
+    :ok
   end
 end

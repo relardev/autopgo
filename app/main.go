@@ -17,7 +17,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	mux := http.NewServeMux()
 
@@ -47,7 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Pretending to do some cleanup work... for 14 seconds")
-	time.Sleep(14 * time.Second)
+	fmt.Println("Pretending to do some cleanup work... for 2 seconds")
+	time.Sleep(2 * time.Second)
 	fmt.Println("Server stopped")
 }

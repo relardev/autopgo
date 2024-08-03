@@ -19,6 +19,7 @@ defmodule Autopgo.Worker do
 
   def init(args) do
     Logger.info("Starting port")
+    Process.flag(:trap_exit, true)
     port = Port.open({:spawn, args.binary_path}, [:binary, :exit_status])
     {:ok, Map.merge(args, %{port: port, state: :waiting})}
   end
@@ -63,16 +64,21 @@ defmodule Autopgo.Worker do
 
     {merged_profile_data, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
 
-    File.write!("default.pprof", merged_profile_data)
+    {:ok, fd} = File.open("default.pprof", [:write, :binary, :raw])
 
-    dbg()
+    IO.binwrite(fd, merged_profile_data)
+
+    File.close(fd)
 
     Logger.info("Compiling")
     start_time = System.os_time(:millisecond)
     [command | args] = String.split(state.recompile_command)
+
     {_, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
 
     Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
+
+    File.rm_rf("default.pprof")
 
     Healthchecks.shutting_down(fn -> 
       GenServer.cast(Autopgo.Worker, :readiness_checked) 
@@ -127,9 +133,14 @@ defmodule Autopgo.Worker do
     Logger.info("Stopping port")
     pid = Port.info(port)[:os_pid]
     
-    # send interrupt signal to the port
+    # send terminate signal to the port
     # this is hack to not require the runned process to handle
     # stdin eof
-    System.cmd("kill", ["-INT", "#{pid}"])
+    System.cmd("kill", ["15", "#{pid}"])
+  end
+
+  def terminate(_reason, state) do
+    Logger.info("Terminating auto pgo")
+    :ok
   end
 end
