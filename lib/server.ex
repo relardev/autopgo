@@ -1,16 +1,37 @@
 defmodule ServerPlug do
-  import Plug.Conn
+  use Plug.Router
 
-  def init(options) do
-    dbg()
-    # initialize options
-    options
+  plug :match
+  plug :dispatch
+
+  get "/liveness" do
+    conn = put_resp_content_type(conn, "text/plain")
+
+    case Healthchecks.liveness() do 
+      :ok -> 
+        conn
+        |> send_resp(200, "OK")
+      {:error, message} -> 
+        conn
+        |> send_resp(500, message)
+    end
   end
 
-  def call(conn, _opts) do
-    dbg()
-    conn
-    |> put_resp_content_type("text/plain")
-    |> send_resp(200, "Hello world")
+  get "/readiness" do
+    conn = put_resp_content_type(conn, "text/plain")
+
+    case Healthchecks.readiness() do 
+      :ok -> 
+        conn
+        |> send_resp(200, "OK")
+      {:error, message} -> 
+        conn
+        |> send_resp(500, message)
+    end
   end
+
+  match _ do
+    send_resp(conn, 404, "not found")
+  end
+
 end

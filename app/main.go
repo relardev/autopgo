@@ -22,7 +22,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello")
 	})
 	server := &http.Server{

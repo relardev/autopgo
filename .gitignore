@@ -27,3 +27,6 @@ autopgo-*.tar
 
 /app/app
 /.lexical
+
+/default.pprof
+/pprof

@@ -13,6 +13,10 @@ defmodule Autopgo.Application do
         recompile_command: "go build -pgo=default.pprof -o app/app app/main.go",
         profile_url: "http://localhost:8080/debug/pprof/profile\?seconds\=5",
       }},
+      {Healthchecks, %{
+        liveness_url: "http://localhost:8080/check",
+        readiness_url: "http://localhost:8080/check",
+      }},
       {Bandit, plug: ServerPlug},
     ]
 
