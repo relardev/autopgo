@@ -1,4 +1,7 @@
 defmodule Autopgo do
+  def gather_profile do
+    GenServer.cast(Autopgo.Worker, :gather_profile)
+  end
   def recompile do
     GenServer.cast(Autopgo.Worker, :recompile)
   end
@@ -14,13 +17,46 @@ defmodule Autopgo.Worker do
   end
 
   def init(args) do
+    Logger.info("Starting port")
     port = Port.open({:spawn, args.binary_path}, [:binary, :exit_status])
     {:ok, Map.merge(args, %{port: port})}
   end
 
-  def handle_cast(:recompile, state) do
-    [command | args] = String.split(state.recompile_command)
+  def handle_cast(:gather_profile, state) do
+    Logger.info("Gathering profile")
+    timestamp = System.os_time(:second)
+    [command | args]  = ~w(wget -O pprof/#{timestamp}.pprof #{state.profile_url})
+
     {_, 0} = System.cmd(command, args)
+
+    Logger.info("Profile gathered")
+
+    {:noreply, state}
+  end
+
+  def handle_cast(:recompile, state) do
+    Logger.info("Recompiling...")
+
+   files = File.ls!("pprof/")
+
+    profiles_files = 
+      files
+    |> Enum.map(&Path.join(["pprof", &1]))
+    |> Enum.join(" ")
+
+    Logger.info("Combining #{Enum.count(files)} profiles")
+    [command | args ] = ~w(go tool pprof -proto #{profiles_files})
+
+    {merged_profile_data, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
+
+    File.write!("default.pprof", merged_profile_data)
+
+    Logger.info("Compiling")
+    start_time = System.os_time(:millisecond)
+    [command | args] = String.split(state.recompile_command)
+    {_, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
+
+    Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
 
     stop_port(state.port)
 
@@ -50,6 +86,7 @@ defmodule Autopgo.Worker do
   end
 
   defp stop_port(port) do
+    Logger.info("Stopping port")
     pid = Port.info(port)[:os_pid]
     
     # send interrupt signal to the port

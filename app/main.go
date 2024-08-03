@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,11 +17,17 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
+	time.Sleep(5 * time.Second)
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "hello")
+	})
 	server := &http.Server{
-		Addr: ":8080",
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "hello")
-		}),
+		Addr:    ":8080",
+		Handler: mux,
 	}
 
 	go func() {
@@ -39,6 +46,7 @@ func main() {
 		fmt.Fprintln(os.Stdout, []any{"Error shutting down server: ", err}...)
 		os.Exit(1)
 	}
+
 	fmt.Println("Pretending to do some cleanup work... for 14 seconds")
 	time.Sleep(14 * time.Second)
 	fmt.Println("Server stopped")

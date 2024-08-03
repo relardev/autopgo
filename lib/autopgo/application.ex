@@ -8,7 +8,12 @@ defmodule Autopgo.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Autopgo.Worker, %{binary_path: "app/app", recompile_command: "go build -o app/app app/main.go"}},
+      {Autopgo.Worker, %{
+        binary_path: "app/app", 
+        recompile_command: "go build -pgo=default.pprof -o app/app app/main.go",
+        profile_url: "http://localhost:8080/debug/pprof/profile\?seconds\=5",
+      }},
+      {Bandit, plug: ServerPlug},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
