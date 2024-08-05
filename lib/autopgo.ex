@@ -20,7 +20,7 @@ defmodule Autopgo.Worker do
   def init(args) do
     Logger.info("Starting port")
     Process.flag(:trap_exit, true)
-    port = Port.open({:spawn, args.binary_path}, [:binary, :exit_status])
+    port = open(args.binary_path)
     {:ok, Map.merge(args, %{port: port, state: :waiting})}
   end
 
@@ -98,8 +98,15 @@ defmodule Autopgo.Worker do
   def handle_info(:app_disconnected_from_lb, state) do
     Logger.info("App disconnected from LB")
 
-    stop_port(state.port)
-    {:noreply, state}
+    Port.close(state.port)
+
+    port = open(state.binary_path)
+
+    Healthchecks.starting_up()
+
+    state.notify_fn.(:ok)
+
+    {:noreply, %{state | port: port, state: :waiting}}
   end
 
   def handle_info({port, :closed}, state) do
@@ -113,15 +120,9 @@ defmodule Autopgo.Worker do
     {:noreply, state}
   end
 
-  def handle_info({_, {:exit_status, status}}, state) do
-    Logger.info("Port exited with status #{status}, restarting...")
-
-    port = Port.open({:spawn, state.binary_path}, [:binary, :exit_status])
-    Healthchecks.starting_up()
-
-    state.notify_fn.(:ok)
-
-    {:noreply, %{state | port: port, state: :waiting}}
+  def handle_info({:EXIT, _port, :normal}, state) do
+    Logger.info("Port stopped normally")
+    {:noreply, state}
   end
 
   def handle_info(msg, state) do
@@ -129,18 +130,16 @@ defmodule Autopgo.Worker do
     {:noreply, state}
   end
 
-  defp stop_port(port) do
-    Logger.info("Stopping port")
-    pid = Port.info(port)[:os_pid]
-    
-    # send terminate signal to the port
-    # this is hack to not require the runned process to handle
-    # stdin eof
-    System.cmd("kill", ["15", "#{pid}"])
-  end
-
   def terminate(_reason, state) do
     Logger.info("Terminating auto pgo")
+    Port.close(state.port)
     :ok
+  end
+
+  defp open(path, args \\ []) do
+    Port.open(
+      {:spawn_executable, "./handle_stdin.sh"},
+      [:binary, :exit_status, args: [path | args]]
+    )
   end
 end

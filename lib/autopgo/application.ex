@@ -30,9 +30,4 @@ defmodule Autopgo.Application do
     opts = [strategy: :one_for_one, name: Autopgo.Supervisor]
     Supervisor.start_link(children, opts)
   end
-
-  def terminate(_reason, _state) do
-    Logger.info("Shutting down")
-    :ok
-  end
 end
