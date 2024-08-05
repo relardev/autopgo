@@ -64,9 +64,11 @@ defmodule Autopgo.Worker do
 
     {merged_profile_data, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
 
-    {:ok, fd} = File.open("default.pprof", [:write, :binary, :raw])
+    {:ok, fd} = File.open("default.pprof", [:write, :binary, :raw, :sync])
 
     IO.binwrite(fd, merged_profile_data)
+
+    :file.datasync(fd)
 
     File.close(fd)
 
@@ -78,7 +80,7 @@ defmodule Autopgo.Worker do
 
     Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
 
-    File.rm_rf("default.pprof")
+    File.rename("default.pprof", "old.pprof")
 
     Healthchecks.shutting_down(fn -> 
       GenServer.cast(Autopgo.Worker, :readiness_checked) 
@@ -120,8 +122,18 @@ defmodule Autopgo.Worker do
     {:noreply, state}
   end
 
+  def handle_info({:EXIT, port, :normal}, %{port: port} = state) do
+    System.stop()
+    {:noreply, state}
+  end
+
   def handle_info({:EXIT, _port, :normal}, state) do
     Logger.info("Port stopped normally")
+    {:noreply, state}
+  end
+
+  def handle_info({port, {:exit_status, _status}}, %{port: port} = state) do
+    Logger.info("Port crashed")
     {:noreply, state}
   end
 

@@ -12,6 +12,20 @@ import (
 )
 
 func main() {
+	if false {
+		// Get all environment variables
+		envs := os.Environ()
+
+		// Print each environment variable
+		for _, env := range envs {
+			fmt.Println(env)
+		}
+	}
+
+	if false {
+		panic("This is a panic")
+	}
+
 	fmt.Println("Starting server on port 8080")
 
 	quit := make(chan os.Signal, 1)
