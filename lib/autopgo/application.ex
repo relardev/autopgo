@@ -21,7 +21,16 @@ defmodule Autopgo.Application do
         liveness_url: "http://localhost:8080/check",
         readiness_url: "http://localhost:8080/check",
       }},
-      {Autopgo.LoopingController, %{}},
+      {Autopgo.LoopingController, %{
+        initial_profile_delay: 1000,
+        recompile_interval: 1000,
+        retry_interval: 1000,
+      }},
+      # {Autopgo.LoopingController, %{
+      #   initial_profile_delay: 15*60*1000,
+      #   recompile_interval: 60*60*1000,
+      #   retry_interval: 1000,
+      # }},
       {Bandit, plug: ServerPlug},
     ]
 

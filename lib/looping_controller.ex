@@ -8,7 +8,7 @@ defmodule Autopgo.LoopingController do
   end
 
   def init(args) do
-    Process.send_after(self(), :tick, 1000)
+    Process.send_after(self(), :tick, args.initial_profile_delay)
     {:ok, args}
   end
 
@@ -20,7 +20,7 @@ defmodule Autopgo.LoopingController do
           :ok -> 
             send(pid, :profile_gathered)
           {:error, _} -> 
-            Process.send_after(pid, :tick, 1000)
+            Process.send_after(pid, :tick, state.retry_interval)
         end
       end
     )
@@ -33,7 +33,7 @@ defmodule Autopgo.LoopingController do
       fn x -> 
         case x do
           :ok -> 
-            Process.send_after(pid, :tick, 1000)
+            Process.send_after(pid, :tick, state.recompile_interval)
           {:error, _} -> 
             Logger.error("Error recompiling, stopping autopgo")
         end

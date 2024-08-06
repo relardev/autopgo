@@ -26,21 +26,13 @@ defmodule Autopgo.Worker do
 
   def handle_cast({:gather_profile, notify_fn}, state) do
     Logger.info("Gathering profile")
-    case Healthchecks.readiness() do
+    case ProfileManager.new_profile(state.profile_url) do
       :ok -> 
-        timestamp = System.os_time(:second)
-        [command | args]  = ~w(wget -O pprof/#{timestamp}.pprof #{state.profile_url})
-
-        {_, 0} = System.cmd(command, args)
-
-        Logger.info("Profile gathered")
         notify_fn.(:ok)
-
-        {:noreply, state}
       {:error, _} -> 
-        notify_fn.({:error, "readiness check failed"})
-        {:noreply, state}
+        notify_fn.({:error, "profile gathering failed"})
     end
+    {:noreply, state}
   end
 
   def handle_cast({:recompile, notify_fn}, %{state: :compiling} = state) do
