@@ -1,0 +1,5 @@
+/deps
+/_build/
+/old.pprof
+/pprof
+/test

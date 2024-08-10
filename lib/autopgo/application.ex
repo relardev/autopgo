@@ -11,15 +11,18 @@ defmodule Autopgo.Application do
     File.rm_rf!("default.pprof")
     File.mkdir_p!("pprof")
 
+
+    dbg(Application.get_all_env(:autopgo))
+
     children = [
       {Autopgo.Worker, %{
-        binary_path: "app/app", 
-        recompile_command: "go build -pgo=default.pprof -o app/app app/main.go",
-        profile_url: "http://localhost:8080/debug/pprof/profile\?seconds\=5",
+        binary_path: Application.get_env(:autopgo, :binary_path),
+        recompile_command: Application.get_env(:autopgo, :recompile_command),
+        profile_url: Application.get_env(:autopgo, :profile_url),
       }},
       {Healthchecks, %{
-        liveness_url: "http://localhost:8080/check",
-        readiness_url: "http://localhost:8080/check",
+        liveness_url: Application.get_env(:autopgo, :liveness_url),
+        readiness_url: Application.get_env(:autopgo, :readiness_url),
       }},
       {Autopgo.WebController, %{}},
       # {Autopgo.LoopingController, %{
