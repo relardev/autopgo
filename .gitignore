@@ -32,3 +32,4 @@ autopgo-*.tar
 /default.pprof
 /pprof
 result
+app_backup

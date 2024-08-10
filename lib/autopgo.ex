@@ -1,10 +1,14 @@
 defmodule Autopgo do
   def gather_profile(notify_fn \\ fn _ -> :ok end) do
-    GenServer.cast(Autopgo.Worker, {:gather_profile, notify_fn})
+    :ok = GenServer.cast(Autopgo.Worker, {:gather_profile, notify_fn})
   end
 
   def recompile(notify_fn \\ fn _ -> :ok end) do
-    GenServer.cast(Autopgo.Worker, {:recompile, notify_fn})
+    :ok = GenServer.cast(Autopgo.Worker, {:recompile, notify_fn})
+  end
+
+  def run_base_binary() do
+    :ok = GenServer.cast(Autopgo.Worker, :run_base_binary)
   end
 end
 
@@ -20,8 +24,11 @@ defmodule Autopgo.Worker do
   def init(args) do
     Logger.info("Starting port")
     Process.flag(:trap_exit, true)
-    port = open(args.binary_path)
-    {:ok, Map.merge(args, %{port: port, state: :waiting})}
+    File.cp!(args.binary_path, "./app_backup")
+    {:ok, Map.merge(args, %{
+      port: open(args.binary_path), 
+      state: :waiting
+    })}
   end
 
   def handle_cast({:gather_profile, notify_fn}, state) do
@@ -35,50 +42,41 @@ defmodule Autopgo.Worker do
     {:noreply, state}
   end
 
-  def handle_cast({:recompile, notify_fn}, %{state: :compiling} = state) do
-    Logger.info("Already compiling")
-    notify_fn.({:error, "already compiling"})
+  def handle_cast(:run_base_binary, %{state: :busy} = state) do
+    Logger.info("Currentyl busy - run base binary")
+
+    {:noreply, state}
+  end
+
+  def handle_cast(:run_base_binary, %{state: :waiting} = state) do
+    Logger.info("Running base binary")
+
+    Healthchecks.shutting_down(fn -> 
+      :ok = GenServer.cast(Autopgo.Worker, :readiness_checked) 
+    end)
+    {:noreply, Map.merge(state, %{state: :busy, path_of_app_to_run: "./app_backup"})}
+  end
+
+  def handle_cast({:recompile, notify_fn}, %{state: :busy} = state) do
+    Logger.info("Currentyl busy - recompile")
+    notify_fn.({:error, "busy"})
     {:noreply, state}
   end
 
   def handle_cast({:recompile, notify_fn}, %{state: :waiting} = state) do
-    Logger.info("Recompiling...")
+    Logger.info("Recompiling with pgo...")
 
-   files = File.ls!("pprof/")
+    combine_profiles()
 
-    profiles_files = 
-      files
-    |> Enum.map(&Path.join(["pprof", &1]))
-    |> Enum.join(" ")
-
-    Logger.info("Combining #{Enum.count(files)} profiles")
-    [command | args ] = ~w(go tool pprof -proto #{profiles_files})
-
-    {merged_profile_data, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
-
-    {:ok, fd} = File.open("default.pprof", [:write, :binary, :raw, :sync])
-
-    IO.binwrite(fd, merged_profile_data)
-
-    :file.datasync(fd)
-
-    File.close(fd)
-
-    Logger.info("Compiling")
-    start_time = System.os_time(:millisecond)
-    [command | args] = String.split(state.recompile_command)
-
-    {_, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
-
-    Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
+    compile(state.recompile_command)
 
     File.rename("default.pprof", "old.pprof")
 
     Healthchecks.shutting_down(fn -> 
-      GenServer.cast(Autopgo.Worker, :readiness_checked) 
+      :ok = GenServer.cast(Autopgo.Worker, :readiness_checked) 
     end)
 
-    {:noreply, Map.merge(state, %{notify_fn: notify_fn, state: :compiling})}
+    {:noreply, Map.merge(state, %{notify_fn: notify_fn, state: :busy, path_of_app_to_run: state.binary_path})}
   end
 
   def handle_cast(:readiness_checked, state) do
@@ -92,14 +90,17 @@ defmodule Autopgo.Worker do
   def handle_info(:app_disconnected_from_lb, state) do
     Logger.info("App disconnected from LB")
 
-    Port.close(state.port)
+    true = Port.close(state.port)
 
-    port = open(state.binary_path)
+    port = open(state.path_of_app_to_run)
 
     Healthchecks.starting_up()
 
-    state.notify_fn.(:ok)
+    if Map.has_key?(state, :notify_fn) do
+      state.notify_fn.(:ok)
+    end
 
+    Logger.info("returning to waiting state")
     {:noreply, %{state | port: port, state: :waiting}}
   end
 
@@ -119,8 +120,8 @@ defmodule Autopgo.Worker do
     {:noreply, state}
   end
 
-  def handle_info({:EXIT, _port, :normal}, state) do
-    Logger.info("Port stopped normally")
+  def handle_info({:EXIT, port, :normal}, state) do
+    Logger.info("Port stopped normally - #{inspect(port)}")
     {:noreply, state}
   end
 
@@ -134,9 +135,15 @@ defmodule Autopgo.Worker do
     {:noreply, state}
   end
 
-  def terminate(_reason, state) do
-    Logger.info("Terminating auto pgo")
-    Port.close(state.port)
+  def terminate(reason, state) do
+    Logger.info("Terminating auto pgo - #{inspect(reason)}")
+    try do
+      Port.close(state.port)
+    rescue
+      _ -> 
+        Logger.error("Port already closed")
+        :ok
+    end
     :ok
   end
 
@@ -145,5 +152,37 @@ defmodule Autopgo.Worker do
       {:spawn_executable, "./handle_stdin.sh"},
       [:binary, :exit_status, args: [path | args]]
     )
+  end
+
+  defp combine_profiles() do
+   files = File.ls!("pprof/")
+
+    profiles_files = 
+      files
+    |> Enum.map(&Path.join(["pprof", &1]))
+    |> Enum.join(" ")
+
+    Logger.info("Combining #{Enum.count(files)} profiles")
+    [command | args ] = ~w(go tool pprof -proto #{profiles_files})
+
+    {merged_profile_data, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
+
+    {:ok, fd} = File.open("default.pprof", [:write, :binary, :raw, :sync])
+
+    :ok = IO.binwrite(fd, merged_profile_data)
+
+    :ok = :file.datasync(fd)
+
+    :ok = File.close(fd)
+  end
+
+  defp compile(recompile_command) do
+    Logger.info("Compiling")
+    start_time = System.os_time(:millisecond)
+    [command | args] = String.split(recompile_command)
+
+    {_, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
+
+    Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
   end
 end

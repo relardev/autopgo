@@ -37,7 +37,7 @@ func main() {
 
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "hello")
+		fmt.Fprintf(w, "with_pgo")
 	})
 	server := &http.Server{
 		Addr:    ":8080",
