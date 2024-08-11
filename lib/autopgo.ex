@@ -24,9 +24,12 @@ defmodule Autopgo.Worker do
   def init(args) do
     Logger.info("Starting port")
     Process.flag(:trap_exit, true)
-    File.cp!(args.binary_path, "./app_backup")
+    [binary_path | binary_args] = String.split(args.run_command)
+    File.cp!(binary_path, "./app_backup")
     {:ok, Map.merge(args, %{
-      port: open(args.binary_path), 
+      port: open(binary_path, binary_args), 
+      binary_path: binary_path,
+      binary_args: binary_args,
       state: :waiting
     })}
   end
@@ -92,7 +95,7 @@ defmodule Autopgo.Worker do
 
     true = Port.close(state.port)
 
-    port = open(state.path_of_app_to_run)
+    port = open(state.path_of_app_to_run, state.binary_args)
 
     Healthchecks.starting_up()
 

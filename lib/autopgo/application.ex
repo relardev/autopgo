@@ -16,7 +16,7 @@ defmodule Autopgo.Application do
 
     children = [
       {Autopgo.Worker, %{
-        binary_path: Application.get_env(:autopgo, :binary_path),
+        run_command: Application.get_env(:autopgo, :run_command),
         recompile_command: Application.get_env(:autopgo, :recompile_command),
         profile_url: Application.get_env(:autopgo, :profile_url),
       }},
@@ -25,11 +25,11 @@ defmodule Autopgo.Application do
         readiness_url: Application.get_env(:autopgo, :readiness_url),
       }},
       {Autopgo.WebController, %{}},
-      # {Autopgo.LoopingController, %{
-      #   initial_profile_delay: 1000,
-      #   recompile_interval: 1000,
-      #   retry_interval: 1000,
-      # }},
+      {Autopgo.LoopingController, %{
+        initial_profile_delay: 1000,
+        recompile_interval: 1000,
+        retry_interval: 1000,
+      }},
       # {Autopgo.LoopingController, %{
       #   initial_profile_delay: 15*60*1000,
       #   recompile_interval: 60*60*1000,

@@ -26,6 +26,8 @@ func main() {
 		panic("This is a panic")
 	}
 
+	fmt.Println("got args:", os.Args)
+
 	fmt.Println("Starting server on port 8080")
 
 	quit := make(chan os.Signal, 1)
