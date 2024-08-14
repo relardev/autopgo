@@ -24,7 +24,7 @@ COPY . .
 RUN mix release
 
 # Stage 2: Create the runtime image
-FROM golang:1.22 AS runtime
+FROM golang:1.23 AS runtime
 
 # Install the necessary packages for setting the locale
 RUN apt-get update && apt-get install -y locales
