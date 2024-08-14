@@ -11,25 +11,26 @@ defmodule Autopgo.Application do
     File.rm_rf!("default.pprof")
     File.mkdir_p!("pprof")
 
-
     dbg(Application.get_all_env(:autopgo))
 
     children = [
       {Autopgo.Worker, %{
+        run_dir: Application.get_env(:autopgo, :run_dir),
         run_command: Application.get_env(:autopgo, :run_command),
         recompile_command: Application.get_env(:autopgo, :recompile_command),
         profile_url: Application.get_env(:autopgo, :profile_url),
+        autopgo_dir: Application.get_env(:autopgo, :autopgo_dir),
       }},
       {Healthchecks, %{
         liveness_url: Application.get_env(:autopgo, :liveness_url),
         readiness_url: Application.get_env(:autopgo, :readiness_url),
       }},
       {Autopgo.WebController, %{}},
-      {Autopgo.LoopingController, %{
-        initial_profile_delay: 1000,
-        recompile_interval: 1000,
-        retry_interval: 1000,
-      }},
+      # {Autopgo.LoopingController, %{
+      #   initial_profile_delay: 1000,
+      #   recompile_interval: 1000,
+      #   retry_interval: 1000,
+      # }},
       # {Autopgo.LoopingController, %{
       #   initial_profile_delay: 15*60*1000,
       #   recompile_interval: 60*60*1000,

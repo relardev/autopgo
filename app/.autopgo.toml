@@ -1,5 +1,7 @@
 [autopgo]
-binary_path = "/code/app"
+autopgo_dir = "/autopgo"
+run_dir = "/code"
+run_command = "app"
 recompile_command = "go build -pgo=default.pprof -o /code/app /code/main.go"
 profile_url = "http://localhost:8080/debug/pprof/profile?seconds=5"
 liveness_url = "http://localhost:8080/check"

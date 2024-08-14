@@ -24,14 +24,20 @@ defmodule Autopgo.Worker do
   def init(args) do
     Logger.info("Starting port")
     Process.flag(:trap_exit, true)
-    [binary_path | binary_args] = String.split(args.run_command)
-    File.cp!(binary_path, "./app_backup")
-    {:ok, Map.merge(args, %{
-      port: open(binary_path, binary_args), 
-      binary_path: binary_path,
+    [command | binary_args] = String.split(args.run_command)
+    binary_path = Path.join(args.run_dir, command)
+    File.cp!(binary_path, Path.join(args.autopgo_dir, "app_backup"))
+    state = %{
+      autopgo_dir: args.autopgo_dir,
       binary_args: binary_args,
+      run_dir: args.run_dir,
+      binary_path: binary_path,
+      recompile_command: args.recompile_command,
+      profile_url: args.profile_url,
       state: :waiting
-    })}
+    }
+    port = open(state)
+    {:ok, Map.merge(state, %{port: port})}
   end
 
   def handle_cast({:gather_profile, notify_fn}, state) do
@@ -95,7 +101,7 @@ defmodule Autopgo.Worker do
 
     true = Port.close(state.port)
 
-    port = open(state.path_of_app_to_run, state.binary_args)
+    port = open(state)
 
     Healthchecks.starting_up()
 
@@ -128,7 +134,7 @@ defmodule Autopgo.Worker do
     {:noreply, state}
   end
 
-  def handle_info({port, {:exit_status, _status}}, %{port: port} = state) do
+  def handle_info({port, {:exit_status, status}}, %{port: port} = state) do
     Logger.info("Port crashed")
     {:noreply, state}
   end
@@ -150,10 +156,10 @@ defmodule Autopgo.Worker do
     :ok
   end
 
-  defp open(path, args \\ []) do
+  defp open(state) do
     Port.open(
-      {:spawn_executable, "./handle_stdin.sh"},
-      [:binary, :exit_status, args: [path | args]]
+      {:spawn_executable, Path.join(state.autopgo_dir, "handle_stdin.sh")},
+      [:binary, :exit_status, {:cd, state.run_dir}, args: [state.binary_path | state.binary_args]]
     )
   end
 
