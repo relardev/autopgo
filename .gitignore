@@ -33,3 +33,5 @@ autopgo-*.tar
 /pprof
 result
 app_backup
+
+/autopgo

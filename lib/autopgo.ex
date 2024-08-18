@@ -188,11 +188,12 @@ defmodule Autopgo.Worker do
   end
 
   defp compile(recompile_command) do
-    Logger.info("Compiling")
+    go_env = go_args()
+    Logger.info("Compiling with args #{inspect(go_env)}")
     start_time = System.os_time(:millisecond)
 
     [command | args] = String.split(recompile_command)
-    {_, 0} = System.cmd(command, args, env: go_args())
+    {_, 0} = System.cmd(command, args, env: go_env)
 
     Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
 
