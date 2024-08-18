@@ -20,7 +20,6 @@ COPY . .
 
 # Build the release
 
-
 RUN mix release
 
 # Stage 2: Create the runtime image

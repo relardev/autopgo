@@ -26,15 +26,16 @@ defmodule Autopgo.Worker do
     Process.flag(:trap_exit, true)
     [command | binary_args] = String.split(args.run_command)
     binary_path = Path.join(args.run_dir, command)
-    File.cp!(binary_path, Path.join(args.autopgo_dir, "app_backup"))
+    :ok = File.cp(binary_path, Path.join(args.autopgo_dir, "app_backup"))
     state = %{
       autopgo_dir: args.autopgo_dir,
       binary_args: binary_args,
       run_dir: args.run_dir,
       binary_path: binary_path,
+      path_of_app_to_run: binary_path,
       recompile_command: args.recompile_command,
       profile_url: args.profile_url,
-      state: :waiting
+      state: :waiting,
     }
     port = open(state)
     {:ok, Map.merge(state, %{port: port})}
@@ -63,7 +64,7 @@ defmodule Autopgo.Worker do
     Healthchecks.shutting_down(fn -> 
       :ok = GenServer.cast(Autopgo.Worker, :readiness_checked) 
     end)
-    {:noreply, Map.merge(state, %{state: :busy, path_of_app_to_run: "./app_backup"})}
+    {:noreply, Map.merge(state, %{state: :busy, path_of_app_to_run: Path.join(state.autopgo_dir, "app_backup")})}
   end
 
   def handle_cast({:recompile, notify_fn}, %{state: :busy} = state) do
@@ -157,9 +158,10 @@ defmodule Autopgo.Worker do
   end
 
   defp open(state) do
+    dbg()
     Port.open(
       {:spawn_executable, Path.join(state.autopgo_dir, "handle_stdin.sh")},
-      [:binary, :exit_status, {:cd, state.run_dir}, args: [state.binary_path | state.binary_args]]
+      [:binary, :exit_status, {:cd, state.run_dir}, args: [state.path_of_app_to_run | state.binary_args]]
     )
   end
 
@@ -188,10 +190,13 @@ defmodule Autopgo.Worker do
   defp compile(recompile_command) do
     Logger.info("Compiling")
     start_time = System.os_time(:millisecond)
-    [command | args] = String.split(recompile_command)
 
+    [command | args] = String.split(recompile_command)
     {_, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
 
     Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
+
+    [command | args ] = ~w(go clean -cache)
+    {_, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
   end
 end
