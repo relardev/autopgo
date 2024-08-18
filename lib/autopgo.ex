@@ -176,7 +176,7 @@ defmodule Autopgo.Worker do
     Logger.info("Combining #{Enum.count(files)} profiles")
     [command | args ] = ~w(go tool pprof -proto #{profiles_files})
 
-    {merged_profile_data, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
+    {merged_profile_data, 0} = System.cmd(command, args, env: go_args())
 
     {:ok, fd} = File.open("default.pprof", [:write, :binary, :raw, :sync])
 
@@ -192,11 +192,20 @@ defmodule Autopgo.Worker do
     start_time = System.os_time(:millisecond)
 
     [command | args] = String.split(recompile_command)
-    {_, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
+    {_, 0} = System.cmd(command, args, env: go_args())
 
     Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
 
     [command | args ] = ~w(go clean -cache)
-    {_, 0} = System.cmd(command, args, env: [{"GOMAXPROCS", "1"}])
+    {_, 0} = System.cmd(command, args, env: go_args())
+  end
+
+  defp go_args() do
+    target = 
+      Autopgo.MemoryMonitor.free()
+      |> fn x -> x / 2 end.()
+      |> trunc()
+
+    [{"GOMAXPROCS", "1"}, {"GOMEMLIMIT", "#{target}MiB"}]
   end
 end

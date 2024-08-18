@@ -7,4 +7,6 @@ config :autopgo,
     recompile_command: "go build -pgo=default.pprof -o app/app app/main.go",
     profile_url: "http://localhost:8080/debug/pprof/profile?seconds=5",
     liveness_url: "http://localhost:8080/check",
-    readiness_url: "http://localhost:8080/check"
+    readiness_url: "http://localhost:8080/check",
+    available_memory_file: "./available_memory",
+    used_memory_file: "./used_memory"

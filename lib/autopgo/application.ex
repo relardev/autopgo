@@ -16,6 +16,10 @@ defmodule Autopgo.Application do
     dbg(Application.get_all_env(:autopgo))
 
     children = [
+      {Autopgo.MemoryMonitor, %{
+        available_memory_file: Application.get_env(:autopgo, :available_memory_file),
+        used_memory_file: Application.get_env(:autopgo, :used_memory_file),
+      }},
       {Autopgo.Worker, %{
         run_dir: Application.get_env(:autopgo, :run_dir),
         run_command: Application.get_env(:autopgo, :run_command),
