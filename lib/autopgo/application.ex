@@ -15,7 +15,9 @@ defmodule Autopgo.Application do
 
     dbg(Application.get_all_env(:autopgo))
 
-    children = [
+    dns = Application.get_env(:autopgo, :dns, "")
+
+    children = cluster(dns) ++ [
       {Autopgo.MemoryMonitor, %{
         available_memory_file: Application.get_env(:autopgo, :available_memory_file),
         used_memory_file: Application.get_env(:autopgo, :used_memory_file),
@@ -37,11 +39,11 @@ defmodule Autopgo.Application do
       #   recompile_interval: 1000,
       #   retry_interval: 1000,
       # }},
-      # {Autopgo.LoopingController, %{
-      #   initial_profile_delay: 15*60*1000,
-      #   recompile_interval: 60*60*1000,
-      #   retry_interval: 1000,
-      # }},
+      {Autopgo.LoopingController, %{
+        initial_profile_delay: 5*60*1000,
+        recompile_interval: 10*60*1000,
+        retry_interval: 1000,
+      }},
       {Bandit, plug: ServerPlug},
     ]
 
@@ -49,5 +51,23 @@ defmodule Autopgo.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Autopgo.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp cluster(""), do: []
+  defp cluster(dns) do
+    topologies = [
+      dns: [
+        strategy: Elixir.Cluster.Strategy.DNSPoll,
+        config: [
+          polling_interval: 5_000,
+          query: dns,
+          node_basename: "autopgo",
+        ]
+      ]
+    ]
+
+    [
+      {Cluster.Supervisor, [topologies, [name: Autopgo.ClusterSupervisor]]},
+    ]
   end
 end

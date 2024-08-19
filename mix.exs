@@ -36,7 +36,8 @@ defmodule Autopgo.MixProject do
       {:bandit, "~> 1.0"},
       {:plug, "~> 1.16.1"},
       {:req, "~> 0.5.0"},
-      {:toml, "~> 0.7"}
+      {:toml, "~> 0.7"},
+      {:libcluster, "~> 3.3"}
     ]
   end
 end
