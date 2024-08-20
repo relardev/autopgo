@@ -166,7 +166,7 @@ defmodule Autopgo.Worker do
     dbg()
     Port.open(
       {:spawn_executable, Path.join(state.autopgo_dir, "handle_stdin.sh")},
-      [:binary, :exit_status, {:cd, state.run_dir}, args: [state.path_of_app_to_run | state.binary_args]]
+      [:binary, :exit_status, :stderr_to_stdout, {:cd, state.run_dir}, args: [state.path_of_app_to_run | state.binary_args]]
     )
   end
 
