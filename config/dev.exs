@@ -9,5 +9,4 @@ config :autopgo,
     liveness_url: "http://localhost:8080/check",
     readiness_url: "http://localhost:8080/check",
     available_memory_file: "./available_memory",
-    used_memory_file: "./used_memory",
-    dns: "localhost"
+    used_memory_file: "./used_memory"

@@ -15,9 +15,9 @@ defmodule Autopgo.Application do
 
     dbg(Application.get_all_env(:autopgo))
 
-    dns = Application.get_env(:autopgo, :dns, "")
+    kubernetes_selector = Application.get_env(:autopgo, :, "")
 
-    children = cluster(dns) ++ [
+    children = cluster(kubernetes_selector) ++ [
       {Autopgo.MemoryMonitor, %{
         available_memory_file: Application.get_env(:autopgo, :available_memory_file),
         used_memory_file: Application.get_env(:autopgo, :used_memory_file),
@@ -54,14 +54,18 @@ defmodule Autopgo.Application do
   end
 
   defp cluster(""), do: []
-  defp cluster(dns) do
+  defp cluster(kubernetes_selector) do
+    Logger.info("Starting cluster with kubernetes_selector: #{kubernetes_selector}")
     topologies = [
-      dns: [
-        strategy: Elixir.Cluster.Strategy.DNSPoll,
+      erlang_nodes_in_k8s: [
+        strategy: Elixir.Cluster.Strategy.Kubernetes,
         config: [
-          polling_interval: 5_000,
-          query: dns,
-          node_basename: "autopgo",
+          mode: :ip,
+          kubernetes_node_basename: "autopgo",
+          kubernetes_ip_lookup_mode: :pods,
+          kubernetes_selector: kubernetes_selector
+          kubernetes_namespace: "default",
+          polling_interval: 10_000
         ]
       ]
     ]
