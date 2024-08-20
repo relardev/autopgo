@@ -121,7 +121,12 @@ defmodule Autopgo.Worker do
 
   def handle_info({_, {:data, data}}, state) do
     # pass logs from the port to the logger
-    Logger.info("Port: #{data}")
+    for line <- String.split(data, "\n") do
+      line = String.trim(line)
+      if line != "" do
+        IO.write(:stderr, "[Program]: #{line}\n")
+      end
+    end
     {:noreply, state}
   end
 

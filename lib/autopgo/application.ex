@@ -15,7 +15,7 @@ defmodule Autopgo.Application do
 
     dbg(Application.get_all_env(:autopgo))
 
-    kubernetes_selector = Application.get_env(:autopgo, :, "")
+    kubernetes_selector = Application.get_env(:autopgo, :kubernetes_selector, "")
 
     children = cluster(kubernetes_selector) ++ [
       {Autopgo.MemoryMonitor, %{
@@ -63,7 +63,7 @@ defmodule Autopgo.Application do
           mode: :ip,
           kubernetes_node_basename: "autopgo",
           kubernetes_ip_lookup_mode: :pods,
-          kubernetes_selector: kubernetes_selector
+          kubernetes_selector: kubernetes_selector,
           kubernetes_namespace: "default",
           polling_interval: 10_000
         ]
