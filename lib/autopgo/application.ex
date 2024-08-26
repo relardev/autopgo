@@ -48,8 +48,6 @@ defmodule Autopgo.Application do
     opts = [strategy: :one_for_one, name: Autopgo.Supervisor]
     {:ok, pid} = Supervisor.start_link(children, opts)
 
-    IO.inspect(pid)
-
      :ok = case Swarm.register_name(:looping_controller, Autopgo.LoopingController, :start_link, [%{
       initial_profile_delay: 5 * 60 * 1000,
       recompile_interval: 10 * 60 * 1000,

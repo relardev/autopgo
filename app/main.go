@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -12,6 +13,10 @@ import (
 )
 
 func main() {
+	port := flag.String("port", ":8080", "Config profile to load")
+
+	flag.Parse()
+
 	if false {
 		// Get all environment variables
 		envs := os.Environ()
@@ -28,7 +33,7 @@ func main() {
 
 	fmt.Println("got args:", os.Args)
 
-	fmt.Println("Starting server on port 8080")
+	fmt.Println("Starting server on port " + *port)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -42,7 +47,7 @@ func main() {
 		fmt.Fprintf(w, "with_pgo")
 	})
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    *port,
 		Handler: mux,
 	}
 
