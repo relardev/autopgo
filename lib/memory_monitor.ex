@@ -10,10 +10,22 @@ defmodule Autopgo.MemoryMonitor do
   end
 
   def init(args) do
-    {:ok, %{
-      available_memory: mem_from_file(args.available_memory_file),
-      used_memory_file: args.used_memory_file,
-    }}
+    dbg()
+    case Map.get(args, :fake, false) do
+      true -> {:ok, %{
+        response: 500,
+        fake: true,
+      }}
+      false -> {:ok, %{
+        available_memory: mem_from_file(args.available_memory_file),
+        used_memory_file: args.used_memory_file,
+        fake: false,
+      }}
+    end
+  end
+
+  def handle_call(:free, _from, %{fake: true} = state) do
+    {:reply, state.response, state}
   end
 
   def handle_call(:free, _from, %{available_memory: available_memory, used_memory_file: used_memory_file} = state) do

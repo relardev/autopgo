@@ -141,7 +141,7 @@ defmodule Autopgo.Worker do
   end
 
   def handle_info({port, {:exit_status, status}}, %{port: port} = state) do
-    Logger.info("Port crashed")
+    Logger.info("Port crashed - #{inspect(status)}")
     {:noreply, state}
   end
 
@@ -163,7 +163,6 @@ defmodule Autopgo.Worker do
   end
 
   defp open(state) do
-    dbg()
     Port.open(
       {:spawn_executable, Path.join(state.autopgo_dir, "handle_stdin.sh")},
       [:binary, :exit_status, :stderr_to_stdout, {:cd, state.run_dir}, args: [state.path_of_app_to_run | state.binary_args]]

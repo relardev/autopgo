@@ -21,6 +21,7 @@ defmodule Autopgo.Application do
       {Autopgo.MemoryMonitor, %{
         available_memory_file: Application.get_env(:autopgo, :available_memory_file),
         used_memory_file: Application.get_env(:autopgo, :used_memory_file),
+        fake: Application.get_env(:autopgo, :fake_memory_monitor, false),
       }},
       {Autopgo.Worker, %{
         run_dir: Application.get_env(:autopgo, :run_dir),
@@ -39,18 +40,33 @@ defmodule Autopgo.Application do
       #   recompile_interval: 1000,
       #   retry_interval: 1000,
       # }},
-      {Autopgo.LoopingController, %{
-        initial_profile_delay: 5*60*1000,
-        recompile_interval: 10*60*1000,
-        retry_interval: 1000,
-      }},
-      {Bandit, plug: ServerPlug},
+      # {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Autopgo.Supervisor]
-    Supervisor.start_link(children, opts)
+    {:ok, pid} = Supervisor.start_link(children, opts)
+
+    IO.inspect(pid)
+
+     :ok = case Swarm.register_name(:looping_controller, Autopgo.LoopingController, :start_link, [%{
+      initial_profile_delay: 5 * 60 * 1000,
+      recompile_interval: 10 * 60 * 1000,
+      retry_interval: 1000
+    }]) do
+      {:ok, _pid} ->
+        Logger.info("Looping controller started on node #{Node.self()}")
+        :ok
+
+      {:error, {:already_registered, _pid}} ->
+        Logger.info("Looping controller already started, skipping on node #{Node.self()}")
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+    {:ok, pid}
   end
 
   defp cluster(""), do: []

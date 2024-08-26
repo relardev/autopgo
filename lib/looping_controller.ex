@@ -41,4 +41,14 @@ defmodule Autopgo.LoopingController do
     )
     {:noreply, state}
   end
+
+  def handle_call({:swarm, :begin_handoff}, _from, state) do
+    Logger.info("Handoff initiated for #{Node.self()}")
+    {:reply, {:resume, state}, state}
+  end
+
+  def handle_cast({:swarm, :end_handoff, handedoff_state}, _state) do
+    Logger.info("Handoff completed for #{Node.self()}")
+    {:noreply, handedoff_state}
+  end
 end
