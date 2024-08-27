@@ -8,4 +8,5 @@ config :autopgo,
     profile_url: "http://localhost:8080/debug/pprof/profile?seconds=5",
     liveness_url: "http://localhost:8080/check",
     readiness_url: "http://localhost:8080/check",
-    fake_memory_monitor: true
+    fake_memory_monitor: true,
+    disable_controller: true

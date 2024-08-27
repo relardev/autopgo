@@ -1,0 +1,1 @@
+../../../handle_stdin.sh
