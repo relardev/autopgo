@@ -35,12 +35,7 @@ defmodule Autopgo.Application do
         readiness_url: Application.get_env(:autopgo, :readiness_url),
       }},
       {Autopgo.WebController, %{}},
-      # {Autopgo.LoopingController, %{
-      #   initial_profile_delay: 1000,
-      #   recompile_interval: 1000,
-      #   retry_interval: 1000,
-      # }},
-      # {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)},
+      {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
@@ -48,17 +43,20 @@ defmodule Autopgo.Application do
     opts = [strategy: :one_for_one, name: Autopgo.Supervisor]
     {:ok, pid} = Supervisor.start_link(children, opts)
 
-    if !Application.get_env(:autopgo, :disable_controller, false) do
+    if Application.get_env(:autopgo, :swarm_controller, true) do
+      start_swarm_controller()
+    else 
       start_controller()
     end
+
     {:ok, pid}
   end
 
-  defp start_controller do
+  defp start_swarm_controller do
      :ok = case Swarm.register_name(:looping_controller, Autopgo.LoopingController, :start_link, [%{
-      initial_profile_delay: 5 * 60 * 1000,
-      recompile_interval: 10 * 60 * 1000,
-      retry_interval: 1000
+        initial_profile_delay_seconds: 13,
+        recompile_interval_seconds: 20,
+        retry_interval_ms: 5000,
     }]) do
       {:ok, _pid} ->
         Logger.info("Looping controller started on node #{Node.self()}")
@@ -71,6 +69,14 @@ defmodule Autopgo.Application do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp start_controller do
+    {:ok, _pid} = Autopgo.LoopingController.start_link(%{
+        initial_profile_delay_seconds: 13,
+        recompile_interval_seconds: 20,
+        retry_interval_ms: 5000,
+    })
   end
 
   defp cluster(""), do: []

@@ -10,4 +10,4 @@ config :autopgo,
     readiness_url: "http://localhost:8080/check",
     available_memory_file: "./available_memory",
     used_memory_file: "./used_memory",
-    disable_controller: true
+    swarm_controller: false
