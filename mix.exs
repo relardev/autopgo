@@ -38,7 +38,6 @@ defmodule Autopgo.MixProject do
       {:req, "~> 0.5.0"},
       {:toml, "~> 0.7"},
       {:libcluster, "~> 3.3"},
-      {:swarm, "~> 3.4"},
       {:ex_unit_clustered_case, "~> 0.5", only: :test}
     ]
   end

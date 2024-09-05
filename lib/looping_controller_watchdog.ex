@@ -1,23 +1,30 @@
-defmodule Autopgo.LoopingController do
-  use GenServer
+defmodule Autopgo.LoopingControllerWatchdog do
+  use Watchdog.SingletonGenServer
 
   require Logger
 
-  def start_link(args) do
-    GenServer.start_link(__MODULE__, args, name: __MODULE__)
+  def initial_state do
+    now = DateTime.utc_now()
+    next_profile_at = DateTime.add(now, 10)
+    %{
+      start: now,
+      next_profile_at: next_profile_at,
+      recompile_interval_seconds: 60,
+      retry_interval_ms: 1000,
+      tick_ms: 5000,
+      machine_state: :waiting
+    }
   end
 
-  def init(args) do
-    Process.send_after(self(), :tick, args.retry_interval_ms)
-    now = DateTime.utc_now()
-    initial_profile_at = DateTime.add(now, args.initial_profile_delay_seconds)
-    {:ok, %{
-      start: now, 
-      next_profile_at: initial_profile_at, 
-      recompile_interval_seconds: args.recompile_interval_seconds, 
-      retry_interval_ms: args.retry_interval_ms,
-      machine_state: :waiting
-    }}
+  def setup(state, _meta) do
+    dbg()
+    Process.send_after(self(), :tick, state.tick_ms)
+    {:ok, state}
+  end
+
+  def import_state(initial_state, import_state) do
+    dbg()
+    %{import_state | machine_state: :waiting}
   end
 
   def handle_info(:tick, %{machine_state: :busy} = state) do

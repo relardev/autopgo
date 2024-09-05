@@ -9,15 +9,29 @@ defmodule Autopgo.Application do
 
   @impl true
   def start(_type, _args) do
-    File.rm_rf!("pprof")
-    File.rm_rf!("default.pprof")
-    File.mkdir_p!("pprof")
+    # File.rm_rf!("pprof")
+    # File.rm_rf!("default.pprof")
+    # File.mkdir_p!("pprof")
 
     dbg(Application.get_all_env(:autopgo))
 
-    kubernetes_selector = Application.get_env(:autopgo, :kubernetes_selector, "")
 
-    children = cluster(kubernetes_selector) ++ [
+    swarm_controller = Application.get_env(:autopgo, :swarm_controller, true)
+    controller = if swarm_controller do
+      [
+        {Watchdog, processes: [Autopgo.LoopingControllerWatchdog]},
+      ]
+    else
+      [
+        {Autopgo.LoopingController, %{
+          initial_profile_delay_seconds: 10,
+          recompile_interval_seconds: 60,
+          retry_interval_ms: 3000,
+        }},
+      ]
+    end
+
+    children = cluster(Application.get_env(:autopgo, :clustering, :kubernetes)) ++ [
       {Autopgo.MemoryMonitor, %{
         available_memory_file: Application.get_env(:autopgo, :available_memory_file),
         used_memory_file: Application.get_env(:autopgo, :used_memory_file),
@@ -34,54 +48,34 @@ defmodule Autopgo.Application do
         liveness_url: Application.get_env(:autopgo, :liveness_url),
         readiness_url: Application.get_env(:autopgo, :readiness_url),
       }},
-      {Autopgo.WebController, %{}},
+      {Autopgo.WebController, %{}}
+    ] ++ controller ++ [
+
       {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Autopgo.Supervisor]
-    {:ok, pid} = Supervisor.start_link(children, opts)
-
-    if Application.get_env(:autopgo, :swarm_controller, true) do
-      start_swarm_controller()
-    else 
-      start_controller()
-    end
-
-    {:ok, pid}
+    Supervisor.start_link(children, opts)
   end
 
-  defp start_swarm_controller do
-     :ok = case Swarm.register_name(:looping_controller, Autopgo.LoopingController, :start_link, [%{
-        initial_profile_delay_seconds: 13,
-        recompile_interval_seconds: 20,
-        retry_interval_ms: 5000,
-    }]) do
-      {:ok, _pid} ->
-        Logger.info("Looping controller started on node #{Node.self()}")
-        :ok
+  defp cluster(:no_cluster), do: []
+  defp cluster(:local) do
+    Logger.info("Starting cluster with local epmd")
+    topologies = [
+      local_epmd_example: [
+        strategy: Elixir.Cluster.Strategy.LocalEpmd
+      ]
+    ]
 
-      {:error, {:already_registered, _pid}} ->
-        Logger.info("Looping controller already started, skipping on node #{Node.self()}")
-        :ok
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    [
+      {Cluster.Supervisor, [topologies, [name: Autopgo.ClusterSupervisor]]},
+    ]
   end
-
-  defp start_controller do
-    {:ok, _pid} = Autopgo.LoopingController.start_link(%{
-        initial_profile_delay_seconds: 13,
-        recompile_interval_seconds: 20,
-        retry_interval_ms: 5000,
-    })
-  end
-
-  defp cluster(""), do: []
-  defp cluster(kubernetes_selector) do
-    Logger.info("Starting cluster with kubernetes_selector: #{kubernetes_selector}")
+  defp cluster(:kubernetes) do
+    selector = Application.get_env(:autopgo, :kubernetes_selector, "")
+    Logger.info("Starting cluster with kubernetes_selector: #{selector}")
     topologies = [
       erlang_nodes_in_k8s: [
         strategy: Elixir.Cluster.Strategy.Kubernetes,
@@ -89,7 +83,7 @@ defmodule Autopgo.Application do
           mode: :ip,
           kubernetes_node_basename: "autopgo",
           kubernetes_ip_lookup_mode: :pods,
-          kubernetes_selector: kubernetes_selector,
+          kubernetes_selector: selector,
           kubernetes_namespace: "default",
           polling_interval: 10_000
         ]

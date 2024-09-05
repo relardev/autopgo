@@ -9,4 +9,5 @@ config :autopgo,
     liveness_url: "http://localhost:8082/check",
     readiness_url: "http://localhost:8082/check",
     fake_memory_monitor: true,
-    port: 4002
+    port: 4002,
+    clustering: :local

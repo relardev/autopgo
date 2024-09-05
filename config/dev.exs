@@ -10,4 +10,5 @@ config :autopgo,
     readiness_url: "http://localhost:8080/check",
     available_memory_file: "./available_memory",
     used_memory_file: "./used_memory",
-    swarm_controller: false
+    swarm_controller: false,
+    clustering: :no_cluster
