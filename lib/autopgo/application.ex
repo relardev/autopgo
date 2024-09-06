@@ -15,44 +15,55 @@ defmodule Autopgo.Application do
 
     dbg(Application.get_all_env(:autopgo))
 
-
     swarm_controller = Application.get_env(:autopgo, :swarm_controller, true)
-    controller = if swarm_controller do
-      [
-        {Watchdog, processes: [Autopgo.LoopingControllerWatchdog]},
-      ]
-    else
-      [
-        {Autopgo.LoopingController, %{
-          initial_profile_delay_seconds: 10,
-          recompile_interval_seconds: 60,
-          retry_interval_ms: 3000,
-        }},
-      ]
-    end
 
-    children = cluster(Application.get_env(:autopgo, :clustering, :kubernetes)) ++ [
-      {Autopgo.MemoryMonitor, %{
-        available_memory_file: Application.get_env(:autopgo, :available_memory_file),
-        used_memory_file: Application.get_env(:autopgo, :used_memory_file),
-        fake: Application.get_env(:autopgo, :fake_memory_monitor, false),
-      }},
-      {Autopgo.Worker, %{
-        run_dir: Application.get_env(:autopgo, :run_dir),
-        run_command: Application.get_env(:autopgo, :run_command),
-        recompile_command: Application.get_env(:autopgo, :recompile_command),
-        profile_url: Application.get_env(:autopgo, :profile_url),
-        autopgo_dir: Application.get_env(:autopgo, :autopgo_dir),
-      }},
-      {Healthchecks, %{
-        liveness_url: Application.get_env(:autopgo, :liveness_url),
-        readiness_url: Application.get_env(:autopgo, :readiness_url),
-      }},
-      {Autopgo.WebController, %{}}
-    ] ++ controller ++ [
+    controller =
+      if swarm_controller do
+        [
+          {Watchdog, processes: [Autopgo.LoopingControllerWatchdog]}
+        ]
+      else
+        [
+          {Autopgo.LoopingController,
+           %{
+             initial_profile_delay_seconds: 10,
+             recompile_interval_seconds: 60,
+             retry_interval_ms: 3000
+           }}
+        ]
+      end
 
-      {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)},
-    ]
+    children =
+      cluster(Application.get_env(:autopgo, :clustering, :kubernetes)) ++
+        [
+          {Autopgo.ProfileManager,
+           %{
+             url: Application.get_env(:autopgo, :profile_url)
+           }},
+          {Autopgo.MemoryMonitor,
+           %{
+             available_memory_file: Application.get_env(:autopgo, :available_memory_file),
+             used_memory_file: Application.get_env(:autopgo, :used_memory_file),
+             fake: Application.get_env(:autopgo, :fake_memory_monitor, false)
+           }},
+          {Autopgo.Worker,
+           %{
+             run_dir: Application.get_env(:autopgo, :run_dir),
+             run_command: Application.get_env(:autopgo, :run_command),
+             recompile_command: Application.get_env(:autopgo, :recompile_command),
+             autopgo_dir: Application.get_env(:autopgo, :autopgo_dir)
+           }},
+          {Healthchecks,
+           %{
+             liveness_url: Application.get_env(:autopgo, :liveness_url),
+             readiness_url: Application.get_env(:autopgo, :readiness_url)
+           }},
+          {Autopgo.WebController, %{}}
+        ] ++
+        controller ++
+        [
+          {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)}
+        ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -61,8 +72,10 @@ defmodule Autopgo.Application do
   end
 
   defp cluster(:no_cluster), do: []
+
   defp cluster(:local) do
     Logger.info("Starting cluster with local epmd")
+
     topologies = [
       local_epmd_example: [
         strategy: Elixir.Cluster.Strategy.LocalEpmd
@@ -70,12 +83,14 @@ defmodule Autopgo.Application do
     ]
 
     [
-      {Cluster.Supervisor, [topologies, [name: Autopgo.ClusterSupervisor]]},
+      {Cluster.Supervisor, [topologies, [name: Autopgo.ClusterSupervisor]]}
     ]
   end
+
   defp cluster(:kubernetes) do
     selector = Application.get_env(:autopgo, :kubernetes_selector, "")
     Logger.info("Starting cluster with kubernetes_selector: #{selector}")
+
     topologies = [
       erlang_nodes_in_k8s: [
         strategy: Elixir.Cluster.Strategy.Kubernetes,
@@ -91,7 +106,7 @@ defmodule Autopgo.Application do
     ]
 
     [
-      {Cluster.Supervisor, [topologies, [name: Autopgo.ClusterSupervisor]]},
+      {Cluster.Supervisor, [topologies, [name: Autopgo.ClusterSupervisor]]}
     ]
   end
 end

@@ -25,17 +25,10 @@ defmodule Autopgo.WebController do
   end
 
   def handle_cast(:run_with_pgo, state) do
-    pid = self()
-    Autopgo.gather_profile(
-      fn x -> 
-        case x do
-          :ok -> 
-            send(pid, :recompile)
-          {:error, _} -> 
-            Logger.error("Error gathering profile")
-        end
-      end
-    )
+    Autopgo.ProfileManager.gather_profiles(fn ->
+      send(self(), :recompile)
+    end)
+
     {:noreply, state}
   end
 

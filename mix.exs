@@ -11,9 +11,10 @@ defmodule Autopgo.MixProject do
       releases: [
         autopgo: [
           config_providers: [
-            {Toml.Provider, [
-              path: {:system, "AUTOPGO_CONFIG", ".autopgo.toml"}
-            ]}
+            {Toml.Provider,
+             [
+               path: {:system, "AUTOPGO_CONFIG", ".autopgo.toml"}
+             ]}
           ]
         ]
       ]

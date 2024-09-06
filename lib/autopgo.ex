@@ -1,8 +1,4 @@
 defmodule Autopgo do
-  def gather_profile(notify_fn \\ fn _ -> :ok end) do
-    :ok = GenServer.cast(Autopgo.Worker, {:gather_profile, notify_fn})
-  end
-
   def recompile(notify_fn \\ fn _ -> :ok end) do
     :ok = GenServer.cast(Autopgo.Worker, {:recompile, notify_fn})
   end
@@ -27,6 +23,7 @@ defmodule Autopgo.Worker do
     [command | binary_args] = String.split(args.run_command)
     binary_path = Path.join(args.run_dir, command)
     :ok = File.cp(binary_path, Path.join(args.autopgo_dir, "app_backup"))
+
     state = %{
       autopgo_dir: args.autopgo_dir,
       binary_args: binary_args,
@@ -34,22 +31,11 @@ defmodule Autopgo.Worker do
       binary_path: binary_path,
       path_of_app_to_run: binary_path,
       recompile_command: args.recompile_command,
-      profile_url: args.profile_url,
-      state: :waiting,
+      state: :waiting
     }
+
     port = open(state)
     {:ok, Map.merge(state, %{port: port})}
-  end
-
-  def handle_cast({:gather_profile, notify_fn}, state) do
-    Logger.info("Gathering profile")
-    case ProfileManager.new_profile(state.profile_url) do
-      :ok -> 
-        notify_fn.(:ok)
-      {:error, _} -> 
-        notify_fn.({:error, "profile gathering failed"})
-    end
-    {:noreply, state}
   end
 
   def handle_cast(:run_base_binary, %{state: :busy} = state) do
@@ -61,10 +47,15 @@ defmodule Autopgo.Worker do
   def handle_cast(:run_base_binary, %{state: :waiting} = state) do
     Logger.info("Running base binary")
 
-    Healthchecks.shutting_down(fn -> 
-      :ok = GenServer.cast(Autopgo.Worker, :readiness_checked) 
+    Healthchecks.shutting_down(fn ->
+      :ok = GenServer.cast(Autopgo.Worker, :readiness_checked)
     end)
-    {:noreply, Map.merge(state, %{state: :busy, path_of_app_to_run: Path.join(state.autopgo_dir, "app_backup")})}
+
+    {:noreply,
+     Map.merge(state, %{
+       state: :busy,
+       path_of_app_to_run: Path.join(state.autopgo_dir, "app_backup")
+     })}
   end
 
   def handle_cast({:recompile, notify_fn}, %{state: :busy} = state) do
@@ -82,11 +73,12 @@ defmodule Autopgo.Worker do
 
     File.rename("default.pprof", "old.pprof")
 
-    Healthchecks.shutting_down(fn -> 
-      :ok = GenServer.cast(Autopgo.Worker, :readiness_checked) 
+    Healthchecks.shutting_down(fn ->
+      :ok = GenServer.cast(Autopgo.Worker, :readiness_checked)
     end)
 
-    {:noreply, Map.merge(state, %{notify_fn: notify_fn, state: :busy, path_of_app_to_run: state.binary_path})}
+    {:noreply,
+     Map.merge(state, %{notify_fn: notify_fn, state: :busy, path_of_app_to_run: state.binary_path})}
   end
 
   def handle_cast(:readiness_checked, state) do
@@ -123,10 +115,12 @@ defmodule Autopgo.Worker do
     # pass logs from the port to the logger
     for line <- String.split(data, "\n") do
       line = String.trim(line)
+
       if line != "" do
         IO.write(:stderr, "[Program]: #{line}\n")
       end
     end
+
     {:noreply, state}
   end
 
@@ -152,33 +146,41 @@ defmodule Autopgo.Worker do
 
   def terminate(reason, state) do
     Logger.info("Terminating auto pgo - #{inspect(reason)}")
+
     try do
       Port.close(state.port)
     rescue
-      _ -> 
+      _ ->
         Logger.error("Port already closed")
         :ok
     end
+
     :ok
   end
 
   defp open(state) do
     Port.open(
       {:spawn_executable, Path.join(state.autopgo_dir, "handle_stdin.sh")},
-      [:binary, :exit_status, :stderr_to_stdout, {:cd, state.run_dir}, args: [state.path_of_app_to_run | state.binary_args]]
+      [
+        :binary,
+        :exit_status,
+        :stderr_to_stdout,
+        {:cd, state.run_dir},
+        args: [state.path_of_app_to_run | state.binary_args]
+      ]
     )
   end
 
   defp combine_profiles() do
-   files = File.ls!("pprof/")
+    files = File.ls!("pprof/")
 
-    profiles_files = 
+    profiles_files =
       files
-    |> Enum.map(&Path.join(["pprof", &1]))
-    |> Enum.join(" ")
+      |> Enum.map(&Path.join(["pprof", &1]))
+      |> Enum.join(" ")
 
     Logger.info("Combining #{Enum.count(files)} profiles")
-    [command | args ] = ~w(go tool pprof -proto #{profiles_files})
+    [command | args] = ~w(go tool pprof -proto #{profiles_files})
 
     {merged_profile_data, 0} = System.cmd(command, args, env: go_args())
 
@@ -201,14 +203,14 @@ defmodule Autopgo.Worker do
 
     Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
 
-    [command | args ] = ~w(go clean -cache)
+    [command | args] = ~w(go clean -cache)
     {_, 0} = System.cmd(command, args, env: go_args())
   end
 
   defp go_args() do
-    target = 
+    target =
       Autopgo.MemoryMonitor.free()
-      |> fn x -> x / 2 end.()
+      |> (fn x -> x / 2 end).()
       |> trunc()
 
     [{"GOMAXPROCS", "1"}, {"GOMEMLIMIT", "#{target}MiB"}]

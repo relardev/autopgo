@@ -1,17 +1,18 @@
 defmodule ServerPlug do
   use Plug.Router
 
-  plug :match
-  plug :dispatch
+  plug(:match)
+  plug(:dispatch)
 
   get "/liveness" do
     conn = put_resp_content_type(conn, "text/plain")
 
-    case Healthchecks.liveness() do 
-      :ok -> 
+    case Healthchecks.liveness() do
+      :ok ->
         conn
         |> send_resp(200, "OK")
-      {:error, message} -> 
+
+      {:error, message} ->
         conn
         |> send_resp(500, message)
     end
@@ -20,45 +21,34 @@ defmodule ServerPlug do
   get "/readiness" do
     conn = put_resp_content_type(conn, "text/plain")
 
-    case Healthchecks.readiness() do 
-      :ok -> 
+    case Healthchecks.readiness() do
+      :ok ->
         conn
         |> send_resp(200, "OK")
-      {:error, message} -> 
+
+      {:error, message} ->
         conn
         |> send_resp(500, message)
     end
   end
 
-
   get "/run_with_pgo" do
-    conn = put_resp_content_type(conn, "text/plain")
+    Autopgo.WebController.run_with_pgo()
 
-    case Autopgo.WebController.run_with_pgo() do 
-      :ok -> 
-        conn
-        |> send_resp(200, "running with pgo")
-      {:error, message} -> 
-        conn
-        |> send_resp(500, message)
-    end
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, "running with pgo")
   end
 
   get "/run_base_binary" do
-    conn = put_resp_content_type(conn, "text/plain")
+    Autopgo.WebController.run_base_binary()
 
-    case Autopgo.WebController.run_base_binary() do 
-      :ok -> 
-        conn
-        |> send_resp(200, "OK")
-      {:error, message} -> 
-        conn
-        |> send_resp(500, message)
-    end
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, "OK")
   end
 
   match _ do
     send_resp(conn, 404, "not found")
   end
-
 end

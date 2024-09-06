@@ -11,13 +11,15 @@ defmodule Autopgo.LoopingController do
     Process.send_after(self(), :tick, args.retry_interval_ms)
     now = DateTime.utc_now()
     initial_profile_at = DateTime.add(now, args.initial_profile_delay_seconds)
-    {:ok, %{
-      start: now, 
-      next_profile_at: initial_profile_at, 
-      recompile_interval_seconds: args.recompile_interval_seconds, 
-      retry_interval_ms: args.retry_interval_ms,
-      machine_state: :waiting
-    }}
+
+    {:ok,
+     %{
+       start: now,
+       next_profile_at: initial_profile_at,
+       recompile_interval_seconds: args.recompile_interval_seconds,
+       retry_interval_ms: args.retry_interval_ms,
+       machine_state: :waiting
+     }}
   end
 
   def handle_info(:tick, %{machine_state: :busy} = state) do
@@ -26,14 +28,19 @@ defmodule Autopgo.LoopingController do
   end
 
   def handle_info(:tick, state) do
-    Logger.info("Controller tick, started: #{state.start}, next_profile_at: #{state.next_profile_at}")
-    machine_state = if DateTime.compare(DateTime.utc_now(), state.next_profile_at) == :gt do
-      ask_for_profile()
-      :busy
-    else
-      Process.send_after(self(), :tick, state.retry_interval_ms)
-      :waiting
-    end
+    Logger.info(
+      "Controller tick, started: #{state.start}, next_profile_at: #{state.next_profile_at}"
+    )
+
+    machine_state =
+      if DateTime.compare(DateTime.utc_now(), state.next_profile_at) == :gt do
+        ask_for_profile()
+        :busy
+      else
+        Process.send_after(self(), :tick, state.retry_interval_ms)
+        :waiting
+      end
+
     {:noreply, %{state | machine_state: machine_state}}
   end
 
@@ -45,16 +52,17 @@ defmodule Autopgo.LoopingController do
 
   def handle_info(:profile_gathered, state) do
     pid = self()
-    Autopgo.recompile(
-      fn x -> 
-        case x do
-          :ok -> 
-            Process.send_after(pid, :done, state.retry_interval_ms)
-          {:error, _} -> 
-            Logger.error("Error recompiling, stopping autopgo")
-        end
+
+    Autopgo.recompile(fn x ->
+      case x do
+        :ok ->
+          Process.send_after(pid, :done, state.retry_interval_ms)
+
+        {:error, _} ->
+          Logger.error("Error recompiling, stopping autopgo")
       end
-    )
+    end)
+
     {:noreply, %{state | machine_state: :busy}}
   end
 
@@ -67,16 +75,9 @@ defmodule Autopgo.LoopingController do
 
   defp ask_for_profile do
     pid = self()
-    Autopgo.gather_profile(
-      fn x -> 
-        case x do
-          :ok -> 
-            send(pid, :profile_gathered)
-          {:error, _} -> 
-            Logger.error("Controller got error gathering profile")
-            Process.send_after(pid, :retry_profile, 1000)
-        end
-      end
-    )
+
+    Autopgo.ProfileManager.gather_profiles(fn ->
+      send(pid, :profile_gathered)
+    end)
   end
 end
