@@ -51,7 +51,7 @@ defmodule Autopgo.LoopingControllerWatchdog do
   def handle_info(:retry_profile, state) do
     Logger.info("Retrying profile gather")
     ask_for_profile()
-    {:noreply, %{state | machine_state: :waiting}}
+    {:noreply, %{state | machine_state: :busy}}
   end
 
   def handle_info(:profile_gathered, state) do

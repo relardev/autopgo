@@ -38,7 +38,8 @@ defmodule Autopgo.Application do
         [
           {Autopgo.ProfileManager,
            %{
-             url: Application.get_env(:autopgo, :profile_url)
+             url: Application.get_env(:autopgo, :profile_url),
+             profile_dir: Application.get_env(:autopgo, :profile_dir, "pprof")
            }},
           {Autopgo.MemoryMonitor,
            %{

@@ -16,4 +16,10 @@ printf '::'
 curl localhost:4002/readiness 2>/dev/null
 printf '::'
 curl localhost:8082/check 2>/dev/null
+printf '||'
+curl localhost:4003/liveness 2>/dev/null
+printf '::'
+curl localhost:4003/readiness 2>/dev/null
+printf '::'
+curl localhost:8083/check 2>/dev/null
 echo

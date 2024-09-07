@@ -11,7 +11,7 @@ defmodule Autopgo.ProfileManager do
     {:ok,
      %{
        url: args.url,
-       generation: 0,
+       profile_dir: args.profile_dir,
        machine_state: :waiting,
        callback: nil,
        timer_cancel: nil,
@@ -27,6 +27,7 @@ defmodule Autopgo.ProfileManager do
     do: {:reply, {:error, "busy"}, state}
 
   def handle_call({:gather_profiles, callback}, _from, state) do
+    File.ls!(state.profile_dir) |> Enum.each(fn x -> File.rm(Path.join([state.profile_dir, x])) end)
     nodes = [Node.self() | Node.list()]
 
     nodes
@@ -47,7 +48,9 @@ defmodule Autopgo.ProfileManager do
   end
 
   def handle_cast({:new_profile, to}, state) do
+    Logger.info("Profiling the app")
     new_profile(state.url, to, 0)
+    Logger.info("Profiling the app done")
     {:noreply, state}
   end
 
@@ -56,11 +59,11 @@ defmodule Autopgo.ProfileManager do
   defp new_profile(url, to, count) do
     case Healthchecks.readiness() do
       :ok ->
-        File.ls!("pprof") |> Enum.each(fn x -> File.rm(Path.join(["pprof", x])) end)
-
         result = Req.get!(url)
 
-        Logger.info("New profile from #{Node.self()}")
+        dbg(result)
+        dbg(byte_size(result.body))
+
         send(to, {:gathered_profile, result, Node.self()})
 
       {:error, _} ->
@@ -76,16 +79,17 @@ defmodule Autopgo.ProfileManager do
 
   def handle_info(:done, state) do
     Process.cancel_timer(state.timer_cancel)
+
+    combine_profiles(state.profile_dir)
+
     state.callback.()
     {:noreply, %{state | machine_state: :waiting}}
   end
 
   def handle_info({:gathered_profile, result, from}, state) do
     Logger.info("Gathered profile from #{from}")
-    save_profile(result, from)
+    save_profile(result, from, state.profile_dir)
     responses_remaining = state.responses_remaining - 1
-
-    dbg()
 
     if responses_remaining == 0 do
       send(self(), :done)
@@ -94,8 +98,30 @@ defmodule Autopgo.ProfileManager do
     {:noreply, %{state | responses_remaining: responses_remaining}}
   end
 
-  defp save_profile(result, from) do
+  defp save_profile(result, from, profile_dir) do
     timestamp = System.os_time(:second)
-    :ok = File.write!("pprof/#{timestamp}_#{from}.pprof", result.body)
+    :ok = File.write!("#{profile_dir}/#{timestamp}_#{from}.pprof", result.body)
+  end
+
+  defp combine_profiles(profile_dir) do
+    files = File.ls!("#{profile_dir}/")
+
+    profiles_files =
+      files
+      |> Enum.map(&Path.join(["#{profile_dir}", &1]))
+      |> Enum.join(" ")
+
+    Logger.info("Combining #{Enum.count(files)} profiles")
+    [command | args] = ~w(go tool pprof -proto #{profiles_files})
+
+    {merged_profile_data, 0} = System.cmd(command, args, env: Autopgo.GoEnv.get())
+
+    {:ok, fd} = File.open("default.pprof", [:write, :binary, :raw, :sync])
+
+    :ok = IO.binwrite(fd, merged_profile_data)
+
+    :ok = :file.datasync(fd)
+
+    :ok = File.close(fd)
   end
 end
