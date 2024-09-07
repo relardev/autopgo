@@ -28,7 +28,7 @@ defmodule Autopgo.Application do
            %{
              initial_profile_delay_seconds: 10,
              recompile_interval_seconds: 60,
-             retry_interval_ms: 3000
+             retry_interval_ms: 5000
            }}
         ]
       end

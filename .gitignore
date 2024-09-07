@@ -35,3 +35,5 @@ result
 app_backup
 
 /autopgo
+.direnv
+.envrc

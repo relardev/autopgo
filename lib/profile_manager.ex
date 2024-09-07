@@ -14,7 +14,8 @@ defmodule Autopgo.ProfileManager do
        generation: 0,
        machine_state: :waiting,
        callback: nil,
-       timer_cancel: nil
+       timer_cancel: nil,
+       responses_remaining: 0
      }}
   end
 
@@ -40,7 +41,8 @@ defmodule Autopgo.ProfileManager do
        state
        | machine_state: :gathering,
          timer_cancel: timer_cancel,
-         callback: callback
+         callback: callback,
+         responses_remaining: length(nodes)
      }}
   end
 
@@ -80,8 +82,20 @@ defmodule Autopgo.ProfileManager do
 
   def handle_info({:gathered_profile, result, from}, state) do
     Logger.info("Gathered profile from #{from}")
+    save_profile(result, from)
+    responses_remaining = state.responses_remaining - 1
+
+    dbg()
+
+    if responses_remaining == 0 do
+      send(self(), :done)
+    end
+
+    {:noreply, %{state | responses_remaining: responses_remaining}}
+  end
+
+  defp save_profile(result, from) do
     timestamp = System.os_time(:second)
     :ok = File.write!("pprof/#{timestamp}_#{from}.pprof", result.body)
-    {:noreply, state}
   end
 end

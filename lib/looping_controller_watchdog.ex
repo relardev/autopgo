@@ -18,13 +18,11 @@ defmodule Autopgo.LoopingControllerWatchdog do
   end
 
   def setup(state, _meta) do
-    dbg()
     Process.send_after(self(), :tick, state.tick_ms)
     {:ok, state}
   end
 
-  def import_state(initial_state, import_state) do
-    dbg()
+  def import_state(_initial_state, import_state) do
     %{import_state | machine_state: :waiting}
   end
 
@@ -43,7 +41,7 @@ defmodule Autopgo.LoopingControllerWatchdog do
         ask_for_profile()
         :busy
       else
-        Process.send_after(self(), :tick, state.retry_interval_ms)
+        Process.send_after(self(), :tick, state.tick_ms)
         :waiting
       end
 
