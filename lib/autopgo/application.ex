@@ -15,24 +15,6 @@ defmodule Autopgo.Application do
 
     dbg(Application.get_all_env(:autopgo))
 
-    swarm_controller = Application.get_env(:autopgo, :swarm_controller, true)
-
-    controller =
-      if swarm_controller do
-        [
-          {Watchdog, processes: [Autopgo.LoopingControllerWatchdog]}
-        ]
-      else
-        [
-          {Autopgo.LoopingController,
-           %{
-             initial_profile_delay_seconds: 10,
-             recompile_interval_seconds: 60,
-             retry_interval_ms: 5000
-           }}
-        ]
-      end
-
     children =
       cluster(Application.get_env(:autopgo, :clustering, :kubernetes)) ++
         [
@@ -59,10 +41,8 @@ defmodule Autopgo.Application do
              liveness_url: Application.get_env(:autopgo, :liveness_url),
              readiness_url: Application.get_env(:autopgo, :readiness_url)
            }},
-          {Autopgo.WebController, %{}}
-        ] ++
-        controller ++
-        [
+          {Autopgo.WebController, %{}},
+          {Watchdog, processes: [Autopgo.LoopingController]},
           {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)}
         ]
 

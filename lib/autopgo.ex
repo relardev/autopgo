@@ -1,10 +1,14 @@
 defmodule Autopgo do
-  def recompile(notify_fn \\ fn _ -> :ok end) do
-    :ok = GenServer.cast(Autopgo.Worker, {:recompile, notify_fn})
+  def restart(notify_fn \\ fn _ -> :ok end) do
+    :ok = GenServer.cast(Autopgo.Worker, {:restart, notify_fn})
   end
 
   def run_base_binary() do
     :ok = GenServer.cast(Autopgo.Worker, :run_base_binary)
+  end
+
+  def write_binary(data) do
+    :ok = GenServer.call(Autopgo.Worker, {:write_binary, data})
   end
 end
 
@@ -30,12 +34,18 @@ defmodule Autopgo.Worker do
       run_dir: args.run_dir,
       binary_path: binary_path,
       path_of_app_to_run: binary_path,
-      recompile_command: args.recompile_command,
       state: :waiting
     }
 
     port = open(state)
     {:ok, Map.merge(state, %{port: port})}
+  end
+
+  def handle_call({:write_binary, data}, _from, state) do
+    Logger.info("Writing new binary to #{state.binary_path}_new")
+    :ok = File.write("#{state.binary_path}_new", data)
+    :ok = File.chmod("#{state.binary_path}_new", 0o755)
+    {:reply, :ok, state}
   end
 
   def handle_cast(:run_base_binary, %{state: :busy} = state) do
@@ -58,19 +68,13 @@ defmodule Autopgo.Worker do
      })}
   end
 
-  def handle_cast({:recompile, notify_fn}, %{state: :busy} = state) do
-    Logger.info("Currentyl busy - recompile")
+  def handle_cast({:restart, notify_fn}, %{state: :busy} = state) do
+    Logger.info("Currentyl busy - restart")
     notify_fn.({:error, "busy"})
     {:noreply, state}
   end
 
-  def handle_cast({:recompile, notify_fn}, %{state: :waiting} = state) do
-    Logger.info("Recompiling with pgo...")
-
-    compile(state.recompile_command)
-
-    File.rename("default.pprof", "old.pprof")
-
+  def handle_cast({:restart, notify_fn}, %{state: :waiting} = state) do
     Healthchecks.shutting_down(fn ->
       :ok = GenServer.cast(Autopgo.Worker, :readiness_checked)
     end)
@@ -91,6 +95,13 @@ defmodule Autopgo.Worker do
     Logger.info("App disconnected from LB")
 
     true = Port.close(state.port)
+
+    there_is_a_new_binary = File.exists?("#{state.binary_path}_new")
+
+    if there_is_a_new_binary do
+      Logger.info("New binary found, moving it to #{state.binary_path}")
+      :ok = File.rename("#{state.binary_path}_new", state.binary_path)
+    end
 
     port = open(state)
 
@@ -168,20 +179,6 @@ defmodule Autopgo.Worker do
       ]
     )
   end
-
-  defp compile(recompile_command) do
-    go_env = Autopgo.GoEnv.get()
-    Logger.info("Compiling with args #{inspect(go_env)}")
-    start_time = System.os_time(:millisecond)
-
-    [command | args] = String.split(recompile_command)
-    {_, 0} = System.cmd(command, args, env: go_env)
-
-    Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
-
-    [command | args] = ~w(go clean -cache)
-    {_, 0} = System.cmd(command, args, env: go_env)
-  end
 end
 
 defmodule Autopgo.GoEnv do
@@ -192,5 +189,25 @@ defmodule Autopgo.GoEnv do
       |> trunc()
 
     [{"GOMAXPROCS", "1"}, {"GOMEMLIMIT", "#{target}MiB"}]
+  end
+end
+
+defmodule Autopgo.Compiler do
+  require Logger
+
+  def compile(command) do
+    go_env = Autopgo.GoEnv.get()
+    Logger.info("Compiling with args #{inspect(go_env)}")
+    start_time = System.os_time(:millisecond)
+
+    [command | args] = String.split(command)
+    {_, 0} = System.cmd(command, args, env: go_env)
+
+    Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
+
+    [command | args] = ~w(go clean -cache)
+    {_, 0} = System.cmd(command, args, env: go_env)
+
+    File.rename("default.pprof", "old.pprof")
   end
 end

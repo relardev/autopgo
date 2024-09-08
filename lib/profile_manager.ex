@@ -27,7 +27,9 @@ defmodule Autopgo.ProfileManager do
     do: {:reply, {:error, "busy"}, state}
 
   def handle_call({:gather_profiles, callback}, _from, state) do
-    File.ls!(state.profile_dir) |> Enum.each(fn x -> File.rm(Path.join([state.profile_dir, x])) end)
+    File.ls!(state.profile_dir)
+    |> Enum.each(fn x -> File.rm(Path.join([state.profile_dir, x])) end)
+
     nodes = [Node.self() | Node.list()]
 
     nodes
@@ -60,9 +62,6 @@ defmodule Autopgo.ProfileManager do
     case Healthchecks.readiness() do
       :ok ->
         result = Req.get!(url)
-
-        dbg(result)
-        dbg(byte_size(result.body))
 
         send(to, {:gathered_profile, result, Node.self()})
 
