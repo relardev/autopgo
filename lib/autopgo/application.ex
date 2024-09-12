@@ -81,7 +81,7 @@ defmodule Autopgo.Application do
           kubernetes_ip_lookup_mode: :pods,
           kubernetes_selector: selector,
           kubernetes_namespace: "default",
-          polling_interval: 10_000
+          polling_interval: 5_000
         ]
       ]
     ]

@@ -37,3 +37,6 @@ app_backup
 /autopgo
 .direnv
 .envrc
+/test/nodes/1/app
+/test/nodes/2/app
+/test/nodes/3/app

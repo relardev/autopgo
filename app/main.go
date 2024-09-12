@@ -44,7 +44,7 @@ func main() {
 
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "new version 32")
+		fmt.Fprintf(w, "something eles")
 	})
 	server := &http.Server{
 		Addr:    *port,

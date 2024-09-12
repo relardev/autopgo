@@ -5,7 +5,7 @@ defmodule Autopgo.LoopingController do
 
   def initial_state do
     now = DateTime.utc_now()
-    next_profile_at = DateTime.add(now, 10)
+    next_profile_at = DateTime.add(now, 5 * 60)
 
     run_dir = Application.get_env(:autopgo, :run_dir)
     run_command = Application.get_env(:autopgo, :run_command)
@@ -17,7 +17,7 @@ defmodule Autopgo.LoopingController do
       next_profile_at: next_profile_at,
       compile_command: Application.get_env(:autopgo, :recompile_command),
       binary_path: binary_path,
-      recompile_interval_seconds: 60,
+      recompile_interval_seconds: 15 * 60,
       retry_interval_ms: 1000,
       tick_ms: 5000,
       machine_state: :waiting,
@@ -73,8 +73,9 @@ defmodule Autopgo.LoopingController do
     Logger.info("Compiling done, distributing the binary")
 
     data = File.read!(state.binary_path)
+    nodes = [Node.self() | Node.list()]
 
-    Enum.each(Node.list(), fn node ->
+    Enum.each(nodes, fn node ->
       Logger.info("Distributing binary to #{node}")
       :rpc.call(node, Autopgo, :write_binary, [data])
     end)

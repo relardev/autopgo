@@ -8,6 +8,8 @@ defmodule Autopgo.ProfileManager do
   end
 
   def init(args) do
+    File.mkdir_p!(args.profile_dir)
+
     {:ok,
      %{
        url: args.url,
