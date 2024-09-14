@@ -3,6 +3,18 @@ defmodule Autopgo.ProfileManager do
 
   require Logger
 
+  def gather_profiles(callback) do
+    GenServer.call(__MODULE__, {:gather_profiles, callback})
+  end
+
+  def send_profile(node) do
+    GenServer.call(__MODULE__, {:send_profile, node})
+  end
+
+  def receive_stream(input_stream) do
+    GenServer.call(__MODULE__, {:receive_stream, input_stream})
+  end
+
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
@@ -14,6 +26,7 @@ defmodule Autopgo.ProfileManager do
      %{
        url: args.url,
        profile_dir: args.profile_dir,
+       default_pprof_path: args.default_pprof_path,
        machine_state: :waiting,
        callback: nil,
        timer_cancel: nil,
@@ -21,8 +34,27 @@ defmodule Autopgo.ProfileManager do
      }}
   end
 
-  def gather_profiles(callback) do
-    GenServer.call(__MODULE__, {:gather_profiles, callback})
+  def handle_call({:send_profile, node}, _from, state) do
+    Logger.info("Sending profile to #{node}")
+    source_stream = File.stream!(state.default_pprof_path, 2048)
+
+    :ok =
+      :erpc.call(node, Autopgo.ProfileManager, :receive_stream, [
+        source_stream
+      ])
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call(
+        {:receive_stream, input_stream},
+        _from,
+        state
+      ) do
+    Logger.info("Receiving profile on #{Node.self()}")
+    write_stream = File.stream!(state.default_pprof_path)
+    Enum.into(input_stream, write_stream)
+    {:reply, :ok, state}
   end
 
   def handle_call({:gather_profiles, _callback}, _from, %{machine_state: :gathering} = state),
@@ -81,7 +113,7 @@ defmodule Autopgo.ProfileManager do
   def handle_info(:done, state) do
     Process.cancel_timer(state.timer_cancel)
 
-    combine_profiles(state.profile_dir)
+    combine_profiles(state.profile_dir, state.default_pprof_path)
 
     state.callback.()
     {:noreply, %{state | machine_state: :waiting}}
@@ -104,7 +136,7 @@ defmodule Autopgo.ProfileManager do
     :ok = File.write!("#{profile_dir}/#{timestamp}_#{from}.pprof", result.body)
   end
 
-  defp combine_profiles(profile_dir) do
+  defp combine_profiles(profile_dir, output_path) do
     files = File.ls!("#{profile_dir}/")
 
     profiles_files =
@@ -117,7 +149,7 @@ defmodule Autopgo.ProfileManager do
 
     {merged_profile_data, 0} = System.cmd(command, args, env: Autopgo.GoEnv.get())
 
-    {:ok, fd} = File.open("default.pprof", [:write, :binary, :raw, :sync])
+    {:ok, fd} = File.open(output_path, [:write, :binary, :raw, :sync])
 
     :ok = IO.binwrite(fd, merged_profile_data)
 

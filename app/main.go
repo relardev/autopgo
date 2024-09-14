@@ -44,7 +44,7 @@ func main() {
 
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "something eles")
+		fmt.Fprintf(w, "works!!")
 	})
 	server := &http.Server{
 		Addr:    *port,

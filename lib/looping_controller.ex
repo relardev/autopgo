@@ -5,24 +5,19 @@ defmodule Autopgo.LoopingController do
 
   def initial_state do
     now = DateTime.utc_now()
-    next_profile_at = DateTime.add(now, 5 * 60)
-
-    run_dir = Application.get_env(:autopgo, :run_dir)
-    run_command = Application.get_env(:autopgo, :run_command)
-    [command | _] = String.split(run_command)
-    binary_path = Path.join(run_dir, command)
+    first_profile_in_seconds = Application.get_env(:autopgo, :first_profile_in_seconds, 5 * 60)
+    next_profile_at = DateTime.add(now, first_profile_in_seconds)
 
     %{
       start: now,
       next_profile_at: next_profile_at,
-      compile_command: Application.get_env(:autopgo, :recompile_command),
-      binary_path: binary_path,
-      recompile_interval_seconds: 15 * 60,
+      recompile_interval_seconds: 60 * 60,
       retry_interval_ms: 1000,
       tick_ms: 5000,
       machine_state: :waiting,
       restarts_remaining: 0,
-      restart_timer_cancel: nil
+      restart_timer_cancel: nil,
+      compile_task: nil
     }
   end
 
@@ -66,19 +61,34 @@ defmodule Autopgo.LoopingController do
   def handle_info(:profile_gathered, state) do
     Logger.info("Profile gathered, compiling the app")
 
-    Autopgo.Compiler.compile(state.compile_command)
+    task = compile()
 
-    File.cp!(state.binary_path, "#{state.binary_path}_new")
+    {:noreply, %{state | compile_task: task}}
+  end
 
-    Logger.info("Compiling done, distributing the binary")
+  def handle_info({:DOWN, ref, :process, _pid, :normal}, %{compile_task: %Task{ref: ref}} = state) do
+    Logger.info("TASK DONE, but it was DEMONITORED, INVESTIGATE")
+    {:noreply, state}
+  end
 
-    data = File.read!(state.binary_path)
-    nodes = [Node.self() | Node.list()]
+  def handle_info(
+        {:DOWN, ref, :process, _pid, :noconnection},
+        %{compile_task: %Task{ref: ref}} = state
+      ) do
+    Logger.info("Node died during compilation, retrying")
 
-    Enum.each(nodes, fn node ->
-      Logger.info("Distributing binary to #{node}")
-      :rpc.call(node, Autopgo, :write_binary, [data])
-    end)
+    task = compile()
+
+    {:noreply, %{state | compile_task: task}}
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{compile_task: %Task{ref: ref}} = state) do
+    Logger.info("Compilation failed: #{inspect(reason)}, stopping autopgo")
+    {:noreply, state}
+  end
+
+  def handle_info({ref, :ok}, %{compile_task: %Task{ref: ref}} = state) do
+    Process.demonitor(ref, [:flush])
 
     self = self()
 
@@ -108,6 +118,12 @@ defmodule Autopgo.LoopingController do
          restarts_remaining: length(nodes),
          restart_timer_cancel: timer_cancel
      }}
+  end
+
+  # We started second compilation and then netsplit healed
+  def handle_info({_ref, :ok}, state) do
+    Logger.info("Compilation done, but we were not expecting it, INVESTIGATE")
+    {:noreply, state}
   end
 
   def handle_info(:restarted, state) do
@@ -144,5 +160,38 @@ defmodule Autopgo.LoopingController do
     Autopgo.ProfileManager.gather_profiles(fn ->
       send(pid, :profile_gathered)
     end)
+  end
+
+  defp compile() do
+    node = select_node()
+    Logger.info("Compiling on #{node}")
+
+    Autopgo.ProfileManager.send_profile(node)
+
+    Task.Supervisor.async_nolink(
+      {Autopgo.Compilation.TaskSupervisor, node},
+      Autopgo.GoCompiler,
+      :compile_and_distribute,
+      []
+    )
+  end
+
+  defp select_node() do
+    nodes = [Node.self() | Node.list()]
+
+    {node, free_mem} =
+      Enum.map(nodes, fn node ->
+        {
+          node,
+          :rpc.call(node, Autopgo.MemoryMonitor, :free, [])
+        }
+      end)
+      |> Enum.sort_by(&elem(&1, 1))
+      |> Enum.reverse()
+      |> hd()
+
+    Logger.info("Selected node: #{inspect(node)}, free mem: #{inspect(free_mem)}")
+
+    node
   end
 end

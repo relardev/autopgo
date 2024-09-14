@@ -180,34 +180,3 @@ defmodule Autopgo.Worker do
     )
   end
 end
-
-defmodule Autopgo.GoEnv do
-  def get() do
-    target =
-      Autopgo.MemoryMonitor.free()
-      |> (fn x -> x / 2 end).()
-      |> trunc()
-
-    [{"GOMAXPROCS", "1"}, {"GOMEMLIMIT", "#{target}MiB"}]
-  end
-end
-
-defmodule Autopgo.Compiler do
-  require Logger
-
-  def compile(command) do
-    go_env = Autopgo.GoEnv.get()
-    Logger.info("Compiling with args #{inspect(go_env)}")
-    start_time = System.os_time(:millisecond)
-
-    [command | args] = String.split(command)
-    {_, 0} = System.cmd(command, args, env: go_env)
-
-    Logger.info("Compiled in #{System.os_time(:millisecond) - start_time}ms")
-
-    [command | args] = ~w(go clean -cache)
-    {_, 0} = System.cmd(command, args, env: go_env)
-
-    File.rename("default.pprof", "old.pprof")
-  end
-end

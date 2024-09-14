@@ -18,10 +18,13 @@ defmodule Autopgo.Application do
     children =
       cluster(Application.get_env(:autopgo, :clustering, :kubernetes)) ++
         [
+          {Autopgo.GoCompiler, %{}},
           {Autopgo.ProfileManager,
            %{
              url: Application.get_env(:autopgo, :profile_url),
-             profile_dir: Application.get_env(:autopgo, :profile_dir, "pprof")
+             profile_dir: Application.get_env(:autopgo, :profile_dir, "pprof"),
+             default_pprof_path:
+               Application.get_env(:autopgo, :default_pprof_path, "default.pprof")
            }},
           {Autopgo.MemoryMonitor,
            %{
@@ -33,7 +36,6 @@ defmodule Autopgo.Application do
            %{
              run_dir: Application.get_env(:autopgo, :run_dir),
              run_command: Application.get_env(:autopgo, :run_command),
-             recompile_command: Application.get_env(:autopgo, :recompile_command),
              autopgo_dir: Application.get_env(:autopgo, :autopgo_dir)
            }},
           {Healthchecks,
@@ -41,6 +43,7 @@ defmodule Autopgo.Application do
              liveness_url: Application.get_env(:autopgo, :liveness_url),
              readiness_url: Application.get_env(:autopgo, :readiness_url)
            }},
+          {Task.Supervisor, name: Autopgo.Compilation.TaskSupervisor},
           {Autopgo.WebController, %{}},
           {Watchdog, processes: [Autopgo.LoopingController]},
           {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)}

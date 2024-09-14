@@ -33,7 +33,7 @@ defmodule Autopgo.WebController do
   end
 
   def handle_info(:recompile, state) do
-    Autopgo.recompile()
+    # Autopgo.recompile()
     {:noreply, state}
   end
 end
