@@ -8,7 +8,11 @@ defmodule Autopgo.ProfileManager do
   end
 
   def send_profile(node) do
-    GenServer.call(__MODULE__, {:send_profile, node})
+    if node == Node.self() do
+      Logger.info("Skipping sending profile to self")
+    else
+      GenServer.call(__MODULE__, {:send_profile, node})
+    end
   end
 
   def receive_stream(input_stream) do
@@ -95,7 +99,7 @@ defmodule Autopgo.ProfileManager do
   defp new_profile(url, to, count) do
     case Healthchecks.readiness() do
       :ok ->
-        result = Req.get!(url)
+        result = Req.get!(url, receive_timeout: 2 * 60 * 1000)
 
         send(to, {:gathered_profile, result, Node.self()})
 

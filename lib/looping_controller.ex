@@ -8,12 +8,17 @@ defmodule Autopgo.LoopingController do
     first_profile_in_seconds = Application.get_env(:autopgo, :first_profile_in_seconds, 5 * 60)
     next_profile_at = DateTime.add(now, first_profile_in_seconds)
 
+    tick_ms = Application.get_env(:autopgo, :tick_ms, 60 * 1000)
+
+    recompile_interval_seconds =
+      Application.get_env(:autopgo, :recompile_interval_seconds, 60 * 60)
+
     %{
       start: now,
       next_profile_at: next_profile_at,
-      recompile_interval_seconds: 60 * 60,
+      recompile_interval_seconds: recompile_interval_seconds,
       retry_interval_ms: 1000,
-      tick_ms: 5000,
+      tick_ms: tick_ms,
       machine_state: :waiting,
       restarts_remaining: 0,
       restart_timer_cancel: nil,

@@ -13,7 +13,7 @@ defmodule Autopgo.MixProject do
           config_providers: [
             {Toml.Provider,
              [
-               path: {:system, "AUTOPGO_CONFIG", ".autopgo.toml"}
+               path: {:system, "AUTOPGO_CONFIG_DIR", "autopgo.toml"}
              ]}
           ]
         ]

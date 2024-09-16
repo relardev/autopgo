@@ -22,11 +22,25 @@ defmodule Autopgo.Worker do
   end
 
   def init(args) do
-    Logger.info("Starting port")
     Process.flag(:trap_exit, true)
     [command | binary_args] = String.split(args.run_command)
     binary_path = Path.join(args.run_dir, command)
-    :ok = File.cp(binary_path, Path.join(args.autopgo_dir, "app_backup"))
+    File.exists?(binary_path) || raise("your program not found under: #{binary_path}")
+    backup_path = Path.join(args.autopgo_dir, "app_backup")
+    File.cp!(binary_path, backup_path)
+
+    handle_stdin_path = Path.join(args.autopgo_dir, "handle_stdin.sh")
+
+    File.exists?(handle_stdin_path) ||
+      raise(
+        "handle_stdin.sh not found under: #{handle_stdin_path}, most likeliy autopgo_path is wrong"
+      )
+
+    ip =
+      Node.self()
+      |> Atom.to_string()
+      |> String.split("@")
+      |> List.last()
 
     state = %{
       autopgo_dir: args.autopgo_dir,
@@ -34,9 +48,12 @@ defmodule Autopgo.Worker do
       run_dir: args.run_dir,
       binary_path: binary_path,
       path_of_app_to_run: binary_path,
-      state: :waiting
+      handle_stdin_path: handle_stdin_path,
+      state: :waiting,
+      ip: ip
     }
 
+    Logger.info("Starting port worker")
     port = open(state)
     {:ok, Map.merge(state, %{port: port})}
   end
@@ -126,7 +143,7 @@ defmodule Autopgo.Worker do
       line = String.trim(line)
 
       if line != "" do
-        IO.write(:stderr, "[Program]: #{line}\n")
+        IO.write(:stderr, "program@#{state.ip} | #{line}\n")
       end
     end
 
@@ -169,7 +186,7 @@ defmodule Autopgo.Worker do
 
   defp open(state) do
     Port.open(
-      {:spawn_executable, Path.join(state.autopgo_dir, "handle_stdin.sh")},
+      {:spawn_executable, state.handle_stdin_path},
       [
         :binary,
         :exit_status,
