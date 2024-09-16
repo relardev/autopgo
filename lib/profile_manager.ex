@@ -26,11 +26,20 @@ defmodule Autopgo.ProfileManager do
   def init(args) do
     File.mkdir_p!(args.profile_dir)
 
+    profiling_time_seconds =
+      Application.get_env(:autopgo, :profile_url)
+      |> URI.parse()
+      |> Map.get(:query)
+      |> URI.decode_query()
+      |> Map.get("seconds")
+      |> String.to_integer()
+
     {:ok,
      %{
        url: args.url,
        profile_dir: args.profile_dir,
        default_pprof_path: args.default_pprof_path,
+       profiling_timeout_seconds: profiling_time_seconds + 10,
        machine_state: :waiting,
        callback: nil,
        timer_cancel: nil,
@@ -75,7 +84,7 @@ defmodule Autopgo.ProfileManager do
       GenServer.cast({__MODULE__, node}, {:new_profile, self()})
     end)
 
-    timer_cancel = Process.send_after(self(), :done, 35 * 1000)
+    timer_cancel = Process.send_after(self(), :done, state.profiling_timeout_seconds * 1000)
 
     {:reply, :ok,
      %{
