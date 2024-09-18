@@ -59,6 +59,8 @@ func main() {
 	}()
 
 	<-quit
+	fmt.Println("Pretending to do some cleanup work... for 2 seconds")
+	time.Sleep(5 * time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -67,8 +69,8 @@ func main() {
 		fmt.Fprintln(os.Stdout, []any{"Error shutting down server: ", err}...)
 		os.Exit(1)
 	}
-
 	fmt.Println("Pretending to do some cleanup work... for 2 seconds")
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
+
 	fmt.Println("Server stopped")
 }

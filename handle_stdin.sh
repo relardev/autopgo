@@ -4,6 +4,8 @@
 exec "$@" &
 pid1=$!
 
+echo "PID:xetw:$pid1"
+
 # Silence warnings from here on
 exec >/dev/null 2>&1
 

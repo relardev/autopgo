@@ -50,11 +50,14 @@ defmodule Autopgo.Worker do
       path_of_app_to_run: binary_path,
       handle_stdin_path: handle_stdin_path,
       state: :waiting,
+      pid: nil,
       ip: ip
     }
 
     Logger.info("Starting port worker")
     port = open(state)
+    Logger.info("Port worker started - #{inspect(port)}")
+
     {:ok, Map.merge(state, %{port: port})}
   end
 
@@ -111,7 +114,7 @@ defmodule Autopgo.Worker do
   def handle_info(:app_disconnected_from_lb, state) do
     Logger.info("App disconnected from LB")
 
-    true = Port.close(state.port)
+    state = port_close(state)
 
     there_is_a_new_binary = File.exists?("#{state.binary_path}_new")
 
@@ -139,15 +142,28 @@ defmodule Autopgo.Worker do
 
   def handle_info({_, {:data, data}}, state) do
     # pass logs from the port to the logger
-    for line <- String.split(data, "\n") do
-      line = String.trim(line)
+    pid =
+      for line <- String.split(data, "\n") do
+        line = String.trim(line)
 
-      if line != "" do
-        IO.write(:stderr, "program@#{state.ip} | #{line}\n")
+        case line do
+          <<"PID:xetw:", pid::binary>> ->
+            Logger.info("got pid: #{pid}")
+            pid
+
+          "" ->
+            nil
+
+          _ ->
+            IO.write(:stderr, "program@#{state.ip} | #{line}\n")
+            nil
+        end
       end
-    end
+      |> Enum.find(&(&1 != nil))
 
-    {:noreply, state}
+    pid = if pid != nil, do: String.trim(pid), else: state.pid
+
+    {:noreply, %{state | pid: pid}}
   end
 
   def handle_info({:EXIT, port, :normal}, %{port: port} = state) do
@@ -195,5 +211,28 @@ defmodule Autopgo.Worker do
         args: [state.path_of_app_to_run | state.binary_args]
       ]
     )
+  end
+
+  defp port_close(state) do
+    Logger.info("Closing port: #{inspect(state.port)}, pid: #{state.pid}")
+
+    System.cmd("kill", ["-15", state.pid])
+
+    port = state.port
+
+    receive do
+      {^port, {:exit_status, 0}} ->
+        Logger.info("Port closed successfully")
+    after
+      60_000 ->
+        Logger.error("Port did not close in 60s")
+        System.stop()
+    end
+
+    %{
+      state
+      | port: nil,
+        pid: nil
+    }
   end
 end
