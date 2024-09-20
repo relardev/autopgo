@@ -10,6 +10,12 @@ defmodule Autopgo do
   def write_binary(data) do
     :ok = GenServer.call(Autopgo.Worker, {:write_binary, data})
   end
+
+  def read_binary(node, into) do
+    destination_stream = File.stream!(into)
+    :ok = GenServer.call({Autopgo.Worker, node}, {:read_binary, destination_stream})
+    :ok = File.chmod(into, 0o755)
+  end
 end
 
 defmodule Autopgo.Worker do
@@ -54,6 +60,8 @@ defmodule Autopgo.Worker do
       ip: ip
     }
 
+    get_binray_if_available(state)
+
     Logger.info("Starting port worker")
     port = open(state)
     Logger.info("Port worker started - #{inspect(port)}")
@@ -65,6 +73,13 @@ defmodule Autopgo.Worker do
     Logger.info("Writing new binary to #{state.binary_path}_new")
     :ok = File.write("#{state.binary_path}_new", data)
     :ok = File.chmod("#{state.binary_path}_new", 0o755)
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:read_binary, destination_stream}, _from, state) do
+    Logger.info("Reading binary from #{state.binary_path}")
+    source_stream = File.stream!(state.binary_path, 2048)
+    Enum.into(source_stream, destination_stream)
     {:reply, :ok, state}
   end
 
@@ -115,13 +130,6 @@ defmodule Autopgo.Worker do
     Logger.info("App disconnected from LB")
 
     state = port_close(state)
-
-    there_is_a_new_binary = File.exists?("#{state.binary_path}_new")
-
-    if there_is_a_new_binary do
-      Logger.info("New binary found, moving it to #{state.binary_path}")
-      :ok = File.rename("#{state.binary_path}_new", state.binary_path)
-    end
 
     port = open(state)
 
@@ -201,6 +209,14 @@ defmodule Autopgo.Worker do
   end
 
   defp open(state) do
+    there_is_a_new_binary = File.exists?("#{state.binary_path}_new")
+
+    if there_is_a_new_binary do
+      Logger.info("New binary found, moving it to #{state.binary_path}")
+      :ok = File.rename("#{state.binary_path}_new", state.binary_path)
+      Autopgo.BinaryStore.got_new_binary()
+    end
+
     Port.open(
       {:spawn_executable, state.handle_stdin_path},
       [
@@ -234,5 +250,17 @@ defmodule Autopgo.Worker do
       | port: nil,
         pid: nil
     }
+  end
+
+  defp get_binray_if_available(state) do
+    Autopgo.BinaryStore.find_newest_binary()
+    |> case do
+      {:error, reason} ->
+        Logger.info("No new binary found: #{reason}")
+
+      {_datetime, node} ->
+        Logger.info("Pulling binary from #{node}")
+        Autopgo.read_binary(node, "#{state.binary_path}_new")
+    end
   end
 end

@@ -18,6 +18,7 @@ defmodule Autopgo.Application do
     children =
       cluster(Application.get_env(:autopgo, :clustering, :kubernetes)) ++
         [
+          {Autopgo.BinaryStore, %{}},
           {Autopgo.GoCompiler, %{}},
           {Autopgo.ProfileManager,
            %{
@@ -32,16 +33,16 @@ defmodule Autopgo.Application do
              used_memory_file: Application.get_env(:autopgo, :used_memory_file),
              fake: Application.get_env(:autopgo, :fake_memory_monitor, false)
            }},
+          {Healthchecks,
+           %{
+             liveness_url: Application.get_env(:autopgo, :liveness_url),
+             readiness_url: Application.get_env(:autopgo, :readiness_url)
+           }},
           {Autopgo.Worker,
            %{
              run_dir: Application.get_env(:autopgo, :run_dir),
              run_command: Application.get_env(:autopgo, :run_command),
              autopgo_dir: Application.get_env(:autopgo, :autopgo_dir)
-           }},
-          {Healthchecks,
-           %{
-             liveness_url: Application.get_env(:autopgo, :liveness_url),
-             readiness_url: Application.get_env(:autopgo, :readiness_url)
            }},
           {Task.Supervisor, name: Autopgo.Compilation.TaskSupervisor},
           {Autopgo.WebController, %{}},
