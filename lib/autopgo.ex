@@ -13,7 +13,13 @@ defmodule Autopgo do
 
   def read_binary(node, into) do
     destination_stream = File.stream!(into)
-    :ok = GenServer.call({Autopgo.Worker, node}, {:read_binary, destination_stream})
+
+    :ok =
+      GenServer.call(
+        {Autopgo.Worker, node},
+        {:read_binary, destination_stream}
+      )
+
     :ok = File.chmod(into, 0o755)
   end
 end

@@ -16,7 +16,7 @@ defmodule Autopgo.Application do
     dbg(Application.get_all_env(:autopgo))
 
     children =
-      cluster(Application.get_env(:autopgo, :clustering, :kubernetes)) ++
+      cluster(Application.get_env(:autopgo, :clustering, :dns)) ++
         [
           {Autopgo.BinaryStore, %{}},
           {Autopgo.GoCompiler, %{}},
@@ -64,6 +64,32 @@ defmodule Autopgo.Application do
     topologies = [
       local_epmd_example: [
         strategy: Elixir.Cluster.Strategy.LocalEpmd
+      ]
+    ]
+
+    [
+      {Cluster.Supervisor, [topologies, [name: Autopgo.ClusterSupervisor]]}
+    ]
+  end
+
+  defp cluster(:dns) do
+    Logger.info("Starting cluster with DNS poll")
+
+    topologies = [
+      dns_poll: [
+        strategy: Elixir.Cluster.Strategy.DNSPoll,
+        config: [
+          query: "kafkalogger",
+          node_basename: "autopgo",
+          resolver: fn query ->
+            {:ok, {:hostent, _name, _aliases, _addr_type, _length, ip_list}} =
+              query
+              |> String.to_charlist()
+              |> :inet.gethostbyname()
+
+            ip_list
+          end
+        ]
       ]
     ]
 
