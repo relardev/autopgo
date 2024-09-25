@@ -73,21 +73,23 @@ defmodule Autopgo.Application do
   end
 
   defp cluster(:dns) do
-    Logger.info("Starting cluster with DNS poll")
+    query = Application.get_env(:autopgo, :dns_query)
+    Logger.info("Starting cluster with DNS poll, query: #{query}")
 
     topologies = [
       dns_poll: [
         strategy: Elixir.Cluster.Strategy.DNSPoll,
         config: [
-          query: "kafkalogger",
+          query: query,
           node_basename: "autopgo",
           resolver: fn query ->
-            {:ok, {:hostent, _name, _aliases, _addr_type, _length, ip_list}} =
-              query
-              |> String.to_charlist()
-              |> :inet.gethostbyname()
-
-            ip_list
+            query
+            |> String.to_charlist()
+            |> :inet.gethostbyname()
+            |> case do
+              {:ok, {:hostent, _name, _aliases, _addr_type, _length, ip_list}} -> ip_list
+              {:error, _} -> []
+            end
           end
         ]
       ]

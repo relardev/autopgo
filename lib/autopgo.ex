@@ -14,13 +14,10 @@ defmodule Autopgo do
   def read_binary(node, into) do
     destination_stream = File.stream!(into)
 
-    :ok =
-      GenServer.call(
-        {Autopgo.Worker, node},
-        {:read_binary, destination_stream}
-      )
-
-    :ok = File.chmod(into, 0o755)
+    GenServer.call(
+      {Autopgo.Worker, node},
+      {:read_binary, destination_stream}
+    )
   end
 end
 
@@ -85,8 +82,15 @@ defmodule Autopgo.Worker do
   def handle_call({:read_binary, destination_stream}, _from, state) do
     Logger.info("Reading binary from #{state.binary_path}")
     source_stream = File.stream!(state.binary_path, 2048)
-    Enum.into(source_stream, destination_stream)
-    {:reply, :ok, state}
+
+    try do
+      Enum.into(source_stream, destination_stream)
+      {:reply, :ok, state}
+    catch
+      _ ->
+        Logger.error("Failed to read binary")
+        {:reply, :error, state}
+    end
   end
 
   def handle_cast(:run_base_binary, %{state: :busy} = state) do
@@ -266,7 +270,17 @@ defmodule Autopgo.Worker do
 
       {_datetime, node} ->
         Logger.info("Pulling binary from #{node}")
-        Autopgo.read_binary(node, "#{state.binary_path}_new")
+        file_path = "#{state.binary_path}_new"
+
+        case Autopgo.read_binary(node, file_path) do
+          :ok ->
+            Logger.info("Binary pulled successfully")
+            :ok = File.chmod(file_path, 0o755)
+
+          :error ->
+            Logger.error("Failed to pull binary")
+            File.rm("#{state.binary_path}_new")
+        end
     end
   end
 end
