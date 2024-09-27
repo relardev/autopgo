@@ -1,4 +1,6 @@
 defmodule Autopgo do
+  require Logger
+
   def restart(notify_fn \\ fn _ -> :ok end) do
     :ok = GenServer.cast(Autopgo.Worker, {:restart, notify_fn})
   end
@@ -12,6 +14,7 @@ defmodule Autopgo do
   end
 
   def read_binary(node, into) do
+    Logger.info("Pulling binary from #{node}")
     destination_stream = File.stream!(into)
 
     GenServer.call(
@@ -283,27 +286,41 @@ defmodule Autopgo.Worker do
   end
 
   defp get_binray_if_available(state) do
-    Autopgo.BinaryStore.find_newest_binary()
-    |> case do
+    file_path = "#{state.binary_path}_new"
+
+    with {:ok, node} <-
+           Autopgo.BinaryStore.find_newest_binary() |> Context.add("No new binary found"),
+         :ok <- read_binary(node, file_path, state) do
+      :ok
+    else
       {:error, reason} ->
-        Logger.info("No new binary found: #{reason}")
+        Logger.info(reason)
         :error
+    end
+  end
 
-      {:ok, node} ->
-        Logger.info("Pulling binary from #{node}")
-        file_path = "#{state.binary_path}_new"
+  defp read_binary(node, into, state) do
+    case Autopgo.read_binary(node, into) do
+      :ok ->
+        Logger.info("Binary pulled successfully")
+        File.chmod!(into, 0o755)
+        :ok
 
-        case Autopgo.read_binary(node, file_path) do
-          :ok ->
-            Logger.info("Binary pulled successfully")
-            File.chmod!(file_path, 0o755)
-            :ok
+      :error ->
+        File.rm("#{state.binary_path}_new")
+        {:error, "Failed to pull binary"}
+    end
+  end
+end
 
-          :error ->
-            Logger.error("Failed to pull binary")
-            File.rm("#{state.binary_path}_new")
-            :error
-        end
+defmodule Context do
+  def add(result, context) do
+    case result do
+      {:error, reason} ->
+        {:error, "#{context}: #{reason}"}
+
+      _ ->
+        result
     end
   end
 end

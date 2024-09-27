@@ -9,10 +9,6 @@ defmodule Autopgo.Application do
 
   @impl true
   def start(_type, _args) do
-    # File.rm_rf!("pprof")
-    # File.rm_rf!("default.pprof")
-    # File.mkdir_p!("pprof")
-
     dbg(Application.get_all_env(:autopgo))
 
     children =
