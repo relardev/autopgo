@@ -31,6 +31,13 @@ func main() {
 		panic("This is a panic")
 	}
 
+	panicChan := make(chan interface{})
+
+	go func() {
+		<-panicChan
+		panic("This is a panic")
+	}()
+
 	fmt.Println("got args:", os.Args)
 
 	fmt.Println("Starting server on port " + *port)
@@ -45,6 +52,9 @@ func main() {
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "works!!")
+	})
+	mux.HandleFunc("/kill", func(w http.ResponseWriter, r *http.Request) {
+		panicChan <- nil
 	})
 	server := &http.Server{
 		Addr:    *port,

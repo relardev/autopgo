@@ -5,7 +5,7 @@ defmodule Autopgo.LoopingController do
 
   def initial_state do
     now = DateTime.utc_now()
-    first_profile_in_seconds = Application.get_env(:autopgo, :first_profile_in_seconds, 5 * 60)
+    first_profile_in_seconds = Application.get_env(:autopgo, :first_profile_in_seconds, 7 * 60)
     next_profile_at = DateTime.add(now, first_profile_in_seconds)
 
     tick_ms = Application.get_env(:autopgo, :tick_ms, 60 * 1000)
@@ -33,6 +33,10 @@ defmodule Autopgo.LoopingController do
 
   def import_state(_initial_state, import_state) do
     %{import_state | machine_state: :waiting}
+  end
+
+  def next_profile_at do
+    GenServer.call({:global, __MODULE__}, :next_profile_at)
   end
 
   def handle_info(:tick, %{machine_state: :busy} = state) do
@@ -157,6 +161,10 @@ defmodule Autopgo.LoopingController do
 
   def handle_info({:EXIT, _port, :normal}, state) do
     {:noreply, state}
+  end
+
+  def handle_call(:next_profile_at, _from, state) do
+    {:reply, state.next_profile_at, state}
   end
 
   defp ask_for_profile do

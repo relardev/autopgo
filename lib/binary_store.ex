@@ -12,12 +12,19 @@ defmodule Autopgo.BinaryStore do
   def find_newest_binary do
     nodes = Node.list()
 
-    if length(nodes) > 1 do
+    if length(nodes) > 0 do
       Enum.map(nodes, fn node ->
         {Autopgo.BinaryStore.get_last_binary_update(node), node}
       end)
       |> Enum.filter(fn {datetime, _} -> datetime != nil end)
-      |> Enum.max_by(&elem(&1, 0), DateTime, fn -> {:error, "No nodes have binary updated"} end)
+      |> Enum.max_by(&elem(&1, 0), DateTime, fn -> :error end)
+      |> case do
+        {_datetime, node} ->
+          {:ok, node}
+
+        :error ->
+          {:error, "No nodes have binary updated"}
+      end
     else
       {:error, "Not in a cluster"}
     end

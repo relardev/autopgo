@@ -52,6 +52,7 @@ defmodule Autopgo.Worker do
       |> List.last()
 
     state = %{
+      retry_check_for_binary_minutes: 15,
       autopgo_dir: args.autopgo_dir,
       binary_args: binary_args,
       run_dir: args.run_dir,
@@ -63,7 +64,9 @@ defmodule Autopgo.Worker do
       ip: ip
     }
 
-    get_binray_if_available(state)
+    if get_binray_if_available(state) == :error do
+      Process.send_after(self(), :update_binary, 5 * 60 * 1000)
+    end
 
     Logger.info("Starting port worker")
     port = open(state)
@@ -81,14 +84,14 @@ defmodule Autopgo.Worker do
 
   def handle_call({:read_binary, destination_stream}, _from, state) do
     Logger.info("Reading binary from #{state.binary_path}")
-    source_stream = File.stream!(state.binary_path, 2048)
 
     try do
+      source_stream = File.stream!(state.binary_path, 2048)
       Enum.into(source_stream, destination_stream)
       {:reply, :ok, state}
     catch
-      _ ->
-        Logger.error("Failed to read binary")
+      e ->
+        Logger.error("Failed to read binary - #{inspect(e)}")
         {:reply, :error, state}
     end
   end
@@ -199,6 +202,23 @@ defmodule Autopgo.Worker do
     {:noreply, state}
   end
 
+  def handle_info(:update_binary, state) do
+    next_profile = Autopgo.LoopingController.next_profile_at()
+    diff = DateTime.diff(next_profile, DateTime.utc_now(), :minute)
+
+    if diff > state.retry_check_for_binary_minutes do
+      Logger.info("Profile in more than 15 min, checking for new binary")
+
+      if get_binray_if_available(state) == :ok do
+        Autopgo.restart()
+      end
+    else
+      Logger.info("Profile in less than 15 min, not checking for new binary")
+    end
+
+    {:noreply, state}
+  end
+
   def handle_info(msg, state) do
     dbg(msg)
     {:noreply, state}
@@ -267,19 +287,22 @@ defmodule Autopgo.Worker do
     |> case do
       {:error, reason} ->
         Logger.info("No new binary found: #{reason}")
+        :error
 
-      {_datetime, node} ->
+      {:ok, node} ->
         Logger.info("Pulling binary from #{node}")
         file_path = "#{state.binary_path}_new"
 
         case Autopgo.read_binary(node, file_path) do
           :ok ->
             Logger.info("Binary pulled successfully")
-            :ok = File.chmod(file_path, 0o755)
+            File.chmod!(file_path, 0o755)
+            :ok
 
           :error ->
             Logger.error("Failed to pull binary")
             File.rm("#{state.binary_path}_new")
+            :error
         end
     end
   end
