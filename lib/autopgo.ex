@@ -21,6 +21,16 @@ defmodule Autopgo do
       {Autopgo.Worker, node},
       {:read_binary, destination_stream}
     )
+    |> case do
+      :ok ->
+        Logger.info("Binary pulled successfully")
+        File.chmod!(into, 0o755)
+        :ok
+
+      :error ->
+        File.rm(into)
+        {:error, "Failed to pull binary"}
+    end
   end
 end
 
@@ -28,6 +38,9 @@ defmodule Autopgo.Worker do
   use GenServer
 
   require Logger
+
+  @graceful_shutdown_signal "-15"
+  @kill_signal "-9"
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
@@ -265,7 +278,7 @@ defmodule Autopgo.Worker do
   defp port_close(state) do
     Logger.info("Closing port: #{inspect(state.port)}, pid: #{state.pid}")
 
-    System.cmd("kill", ["-15", state.pid])
+    System.cmd("kill", [@graceful_shutdown_signal, state.pid])
 
     port = state.port
 
@@ -274,8 +287,8 @@ defmodule Autopgo.Worker do
         Logger.info("Port closed successfully")
     after
       60_000 ->
-        Logger.error("Port did not close in 60s")
-        System.stop()
+        Logger.error("Port did not close in 60s, force killing it")
+        System.cmd("kill", [@kill_signal, state.pid])
     end
 
     %{
@@ -290,25 +303,12 @@ defmodule Autopgo.Worker do
 
     with {:ok, node} <-
            Autopgo.BinaryStore.find_newest_binary() |> Context.add("No new binary found"),
-         :ok <- read_binary(node, file_path, state) do
+         :ok <- Autopgo.read_binary(node, file_path) do
       :ok
     else
       {:error, reason} ->
         Logger.info(reason)
         :error
-    end
-  end
-
-  defp read_binary(node, into, state) do
-    case Autopgo.read_binary(node, into) do
-      :ok ->
-        Logger.info("Binary pulled successfully")
-        File.chmod!(into, 0o755)
-        :ok
-
-      :error ->
-        File.rm("#{state.binary_path}_new")
-        {:error, "Failed to pull binary"}
     end
   end
 end
