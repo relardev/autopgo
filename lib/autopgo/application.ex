@@ -38,7 +38,8 @@ defmodule Autopgo.Application do
            %{
              run_dir: Application.get_env(:autopgo, :run_dir),
              run_command: Application.get_env(:autopgo, :run_command),
-             autopgo_dir: Application.get_env(:autopgo, :autopgo_dir)
+             autopgo_dir: Application.get_env(:autopgo, :autopgo_dir),
+             pull_binary_on_init: false
            }},
           {Task.Supervisor, name: Autopgo.Compilation.TaskSupervisor},
           {Autopgo.WebController, %{}},

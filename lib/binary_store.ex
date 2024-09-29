@@ -10,23 +10,10 @@ defmodule Autopgo.BinaryStore do
   end
 
   def find_newest_binary do
-    nodes = Node.list()
-
-    if length(nodes) > 0 do
-      Enum.map(nodes, fn node ->
-        {Autopgo.BinaryStore.get_last_binary_update(node), node}
-      end)
-      |> Enum.filter(fn {datetime, _} -> datetime != nil end)
-      |> Enum.max_by(&elem(&1, 0), DateTime, fn -> :error end)
-      |> case do
-        {_datetime, node} ->
-          {:ok, node}
-
-        :error ->
-          {:error, "No nodes have binary updated"}
-      end
-    else
-      {:error, "Not in a cluster"}
+    try do
+      GenServer.call(__MODULE__, :find_newest_binary)
+    rescue
+      exception -> {:error, exception}
     end
   end
 
@@ -36,6 +23,30 @@ defmodule Autopgo.BinaryStore do
 
   def init(_) do
     {:ok, %{last_binary_update: nil}}
+  end
+
+  def handle_call(:find_newest_binary, _from, state) do
+    nodes = Node.list()
+
+    result =
+      if length(nodes) > 0 do
+        Enum.map(nodes, fn node ->
+          {Autopgo.BinaryStore.get_last_binary_update(node), node}
+        end)
+        |> Enum.filter(fn {datetime, _} -> datetime != nil end)
+        |> Enum.max_by(&elem(&1, 0), DateTime, fn -> :error end)
+        |> case do
+          {_datetime, node} ->
+            {:ok, node}
+
+          :error ->
+            {:error, "No nodes have binary updated"}
+        end
+      else
+        {:error, "Not in a cluster"}
+      end
+
+    {:reply, result, state}
   end
 
   def handle_call(:get_last_binary_update, _from, %{last_binary_update: lbu} = state) do
