@@ -15,40 +15,41 @@ defmodule Autopgo.Worker do
     {:ok, %{state: :waiting, notify_fn: nil}}
   end
 
-  def handle_cast({:restart, notify_fn}, %{state: :busy} = state) do
-    Logger.info("Currentyl busy - restart")
-    notify_fn.({:error, "busy"})
-    {:noreply, state}
-  end
+  def handle_cast({:restart, notify_fn}, state) do
+    self = self()
 
-  def handle_cast({:restart, notify_fn}, %{state: :waiting} = state) do
     Healthchecks.shutting_down(fn ->
-      :ok = GenServer.cast(Autopgo.Worker, :readiness_checked)
+      send(self, :readiness_checked)
     end)
 
-    {:noreply, Map.merge(state, %{notify_fn: notify_fn, state: :busy})}
-  end
+    receive do
+      :readiness_checked ->
+        Logger.info("Readiness checked")
+    end
 
-  def handle_cast(:readiness_checked, state) do
-    Logger.info("Readiness checked")
+    # wait for lb to disconnect
+    :timer.sleep(1000)
 
-    # we assume 1s is enough for the lb to stop sending traffic
-    Process.send_after(self(), :app_disconnected_from_lb, 1000)
-    {:noreply, state}
-  end
-
-  def handle_info(:app_disconnected_from_lb, state) do
     Logger.info("App disconnected from LB")
 
     Autopgo.AppSupervisor.restart()
 
     Healthchecks.starting_up()
 
-    if Map.has_key?(state, :notify_fn) do
-      state.notify_fn.(:ok)
-    end
+    notify_fn.(:ok)
 
-    Logger.info("returning to waiting state")
-    {:noreply, %{state | state: :waiting}}
+    Logger.info("Done restarting")
+    drain_restarts_in_queue()
+    {:noreply, state}
+  end
+
+  def drain_restarts_in_queue() do
+    receive do
+      {:restart, notify_fn} ->
+        notify_fn.({:error, "was busy"})
+        drain_restarts_in_queue()
+    after
+      0 -> :ok
+    end
   end
 end
