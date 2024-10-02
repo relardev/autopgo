@@ -112,7 +112,7 @@ defmodule Autopgo.BinaryStore do
       Logger.info("Profile in more than 15 min, checking for new binary")
 
       if Autopgo.BinaryStoreDistributed.get_newest_binary(state.binary_path) == :ok do
-        Autopgo.restart()
+        Autopgo.Worker.restart()
       end
     else
       Logger.info("Profile in less than 15 min, not checking for new binary")

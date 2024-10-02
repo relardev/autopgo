@@ -106,8 +106,8 @@ defmodule Autopgo.LoopingController do
         :ok ->
           send(self, :restarted)
 
-        {:error, _} ->
-          Logger.error("Error restarting")
+        {:error, reason} ->
+          Logger.error("Error restarting - #{inspect(reason)}")
       end
     end
 
@@ -115,7 +115,7 @@ defmodule Autopgo.LoopingController do
 
     Enum.each(nodes, fn node ->
       Logger.info("Restarting autopgo on #{node}")
-      :rpc.call(node, Autopgo, :restart, [restart_callback])
+      :rpc.call(node, Autopgo.Worker, :restart, [restart_callback])
     end)
 
     timer_cancel = Process.send_after(self(), :done, 60 * 1000)

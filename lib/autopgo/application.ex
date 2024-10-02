@@ -39,12 +39,13 @@ defmodule Autopgo.Application do
              liveness_url: Application.get_env(:autopgo, :liveness_url),
              readiness_url: Application.get_env(:autopgo, :readiness_url)
            }},
-          {Autopgo.Worker,
+          {Autopgo.AppSupervisor,
            %{
              run_dir: Application.get_env(:autopgo, :run_dir),
              run_command: run_command,
              autopgo_dir: Application.get_env(:autopgo, :autopgo_dir)
            }},
+          {Autopgo.Worker, %{}},
           {Task.Supervisor, name: Autopgo.Compilation.TaskSupervisor},
           {Autopgo.WebController, %{}},
           {Watchdog, processes: [Autopgo.LoopingController]},

@@ -19,11 +19,6 @@ defmodule Autopgo.WebController do
     {:ok, args}
   end
 
-  def handle_cast(:run_base_binary, state) do
-    Autopgo.run_base_binary()
-    {:noreply, state}
-  end
-
   def handle_cast(:run_with_pgo, state) do
     Autopgo.ProfileManager.gather_profiles(fn ->
       send(self(), :recompile)
