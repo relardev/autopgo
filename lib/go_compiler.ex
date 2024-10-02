@@ -30,7 +30,10 @@ defmodule Autopgo.GoCompiler do
 
   def handle_call({:compile}, _from, state) do
     compile(state)
-    distribute(state)
+
+    data = File.read!(state.binary_path)
+    Autopgo.BinaryStore.bump_last_binary_update()
+    Autopgo.BinaryStoreDistributed.distribute_binary(data)
 
     {:reply, :ok, state}
   end
@@ -47,17 +50,5 @@ defmodule Autopgo.GoCompiler do
 
     [command | args] = ~w(go clean -cache)
     {_, 0} = System.cmd(command, args, env: go_env)
-  end
-
-  defp distribute(state) do
-    Logger.info("Distributing the binary")
-
-    data = File.read!(state.binary_path)
-    nodes = [Node.self() | Node.list()]
-
-    Enum.each(nodes, fn node ->
-      Logger.info("Distributing binary to #{node}")
-      :rpc.call(node, Autopgo, :write_binary, [data])
-    end)
   end
 end

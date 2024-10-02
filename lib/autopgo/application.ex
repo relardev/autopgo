@@ -10,11 +10,16 @@ defmodule Autopgo.Application do
   @impl true
   def start(_type, _args) do
     dbg(Application.get_all_env(:autopgo))
+    run_command = Application.get_env(:autopgo, :run_command)
 
     children =
       cluster(Application.get_env(:autopgo, :clustering, :dns)) ++
         [
-          {Autopgo.BinaryStore, %{}},
+          {Autopgo.BinaryStore,
+           %{
+             run_dir: Application.get_env(:autopgo, :run_dir),
+             run_command: run_command
+           }},
           {Autopgo.GoCompiler, %{}},
           {Autopgo.ProfileManager,
            %{
@@ -37,9 +42,8 @@ defmodule Autopgo.Application do
           {Autopgo.Worker,
            %{
              run_dir: Application.get_env(:autopgo, :run_dir),
-             run_command: Application.get_env(:autopgo, :run_command),
-             autopgo_dir: Application.get_env(:autopgo, :autopgo_dir),
-             pull_binary_on_init: false
+             run_command: run_command,
+             autopgo_dir: Application.get_env(:autopgo, :autopgo_dir)
            }},
           {Task.Supervisor, name: Autopgo.Compilation.TaskSupervisor},
           {Autopgo.WebController, %{}},
