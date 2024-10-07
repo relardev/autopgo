@@ -4,6 +4,7 @@ defmodule Autopgo.LoopingController do
   require Logger
 
   def initial_state do
+    Logger.info("Initializing state")
     now = DateTime.utc_now()
     first_profile_in_seconds = Application.get_env(:autopgo, :first_profile_in_seconds, 7 * 60)
     next_profile_at = DateTime.add(now, first_profile_in_seconds)
@@ -26,13 +27,25 @@ defmodule Autopgo.LoopingController do
     }
   end
 
+  def import_state(initial_state, import_state) do
+    state = select_state(initial_state, import_state)
+    Logger.info("Imported state start: #{inspect(state.start)}")
+    %{state | machine_state: :waiting}
+  end
+
+  defp select_state(state1, state2) do
+    if DateTime.compare(state1.start, state2.start) == :lt do
+      Logger.info("Selecting earlier state")
+      state1
+    else
+      Logger.info("Selecting later state")
+      state2
+    end
+  end
+
   def setup(state, _meta) do
     Process.send_after(self(), :tick, state.tick_ms)
     {:ok, state}
-  end
-
-  def import_state(_initial_state, import_state) do
-    %{import_state | machine_state: :waiting}
   end
 
   def next_profile_at do
@@ -45,9 +58,9 @@ defmodule Autopgo.LoopingController do
   end
 
   def handle_info(:tick, state) do
-    Logger.info(
-      "Controller tick, started: #{state.start}, next_profile_at: #{state.next_profile_at}"
-    )
+    formatted_next = Calendar.strftime(state.next_profile_at, "%H:%M:%S")
+    formatted_start = Calendar.strftime(state.start, "%Y-%m-%d %H:%M:%S")
+    Logger.info("Tick, started: #{formatted_start}, next: #{formatted_next}")
 
     machine_state =
       if DateTime.compare(DateTime.utc_now(), state.next_profile_at) == :gt do

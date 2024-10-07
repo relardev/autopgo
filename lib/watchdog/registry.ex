@@ -33,12 +33,18 @@ defmodule Watchdog.Registry do
     {:ok, node1_uptime} = GenServer.call({Watchdog.Watcher, node1}, {:get_uptime})
     {:ok, node2_uptime} = GenServer.call({Watchdog.Watcher, node2}, {:get_uptime})
 
-    if node1_uptime > node2_uptime do
-      Logger.debug("resolving name conflict for #{name} - terminating older pid #{inspect(pid1)}")
+    if node1_uptime < node2_uptime do
+      Logger.debug(
+        "resolving name conflict for #{name} - terminating younger pid #{inspect(pid1)}"
+      )
+
       Process.exit(pid1, :name_conflict)
       pid2
     else
-      Logger.debug("resolving name conflict for #{name} - terminating older pid #{inspect(pid2)}")
+      Logger.debug(
+        "resolving name conflict for #{name} - terminating younger pid #{inspect(pid2)}"
+      )
+
       Process.exit(pid2, :name_conflict)
       pid1
     end
