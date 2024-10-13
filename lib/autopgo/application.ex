@@ -12,9 +12,34 @@ defmodule Autopgo.Application do
     dbg(Application.get_all_env(:autopgo))
     run_command = Application.get_env(:autopgo, :run_command)
 
+    {available_memory_files, used_memory_files} =
+      case Application.get_env(:autopgo, :memory_monitor, "file") do
+        "fake" ->
+          {nil, nil}
+
+        "cgroups" ->
+          {
+            [
+              "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+              "/sys/fs/cgroup/memory.max"
+            ],
+            [
+              "/sys/fs/cgroup/memory/memory.usage_in_bytes",
+              "/sys/fs/cgroup/memory.current"
+            ]
+          }
+
+        _ ->
+          {
+            [Application.get_env(:autopgo, :available_memory_file)],
+            [Application.get_env(:autopgo, :used_memory_file)]
+          }
+      end
+
     children =
       cluster(Application.get_env(:autopgo, :clustering, :dns)) ++
         [
+          PoolSupervisor,
           {Autopgo.BinaryStore,
            %{
              run_dir: Application.get_env(:autopgo, :run_dir),
@@ -30,9 +55,9 @@ defmodule Autopgo.Application do
            }},
           {Autopgo.MemoryMonitor,
            %{
-             available_memory_file: Application.get_env(:autopgo, :available_memory_file),
-             used_memory_file: Application.get_env(:autopgo, :used_memory_file),
-             fake: Application.get_env(:autopgo, :fake_memory_monitor, false)
+             available_memory_files: available_memory_files,
+             used_memory_files: used_memory_files,
+             fake: Application.get_env(:autopgo, :memory_monitor) == "fake"
            }},
           {Healthchecks,
            %{

@@ -14,21 +14,39 @@ defmodule Autopgo.MemoryMonitor do
       true ->
         {:ok,
          %{
-           fake: true
+           fake: true,
+           response: 700
          }}
 
       false ->
+        available_memory_file = find_first_existing(args.available_memory_files)
+        used_memory_file = find_first_existing(args.used_memory_files)
+
         {:ok,
          %{
-           available_memory: mem_from_file(args.available_memory_file),
-           used_memory_file: args.used_memory_file,
+           available_memory: mem_from_file(available_memory_file),
+           used_memory_file: used_memory_file,
            fake: false
          }}
     end
   end
 
+  defp find_first_existing(files) do
+    Enum.reduce_while(
+      files,
+      nil,
+      fn file, acc ->
+        if File.exists?(file) do
+          {:halt, file}
+        else
+          {:cont, acc}
+        end
+      end
+    )
+  end
+
   def handle_call(:free, _from, %{fake: true} = state) do
-    {:reply, :rand.uniform(500) + 200, state}
+    {:reply, state.response, state}
   end
 
   def handle_call(

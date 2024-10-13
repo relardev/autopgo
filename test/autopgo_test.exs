@@ -7,9 +7,8 @@
 #   end
 # end
 
-
 defmodule AutopgoClusterTest do
-   # Use the module
+  # Use the module
   use ExUnit.ClusteredCase
 
   @opts [
@@ -28,9 +27,9 @@ defmodule AutopgoClusterTest do
             profile_url: "http://localhost:8081/debug/pprof/profile?seconds=5",
             liveness_url: "http://localhost:8081/check",
             readiness_url: "http://localhost:8081/check",
-            fake_memory_monitor: true,
+            memory_monitor: "fake",
             port: 4001
-          ],
+          ]
         ]
       ],
       [
@@ -44,9 +43,9 @@ defmodule AutopgoClusterTest do
             profile_url: "http://localhost:8082/debug/pprof/profile?seconds=5",
             liveness_url: "http://localhost:8082/check",
             readiness_url: "http://localhost:8082/check",
-            fake_memory_monitor: true,
+            memory_monitor: "fake",
             port: 4002
-          ],
+          ]
         ]
       ],
       [
@@ -60,9 +59,9 @@ defmodule AutopgoClusterTest do
             profile_url: "http://localhost:8083/debug/pprof/profile?seconds=5",
             liveness_url: "http://localhost:8083/check",
             readiness_url: "http://localhost:8083/check",
-            fake_memory_monitor: true,
+            memory_monitor: "fake",
             port: 4003
-          ],
+          ]
         ]
       ],
       [
@@ -76,9 +75,9 @@ defmodule AutopgoClusterTest do
             profile_url: "http://localhost:8084/debug/pprof/profile?seconds=5",
             liveness_url: "http://localhost:8084/check",
             readiness_url: "http://localhost:8084/check",
-            fake_memory_monitor: true,
+            memory_monitor: "fake",
             port: 4004
-          ],
+          ]
         ]
       ]
     ]
@@ -86,15 +85,15 @@ defmodule AutopgoClusterTest do
 
   # Define a clustered scenario
   scenario "given a healthy cluster", @opts do
-
     node_setup do
       Application.ensure_all_started(:swarm)
     end
 
     # Define a test to run in this scenario
     test "cluster has three nodes", %{cluster: c} = _context do
-      [one, two, three, four] = Cluster.members(c)
-      |> Enum.sort()
+      [one, two, three, four] =
+        Cluster.members(c)
+        |> Enum.sort()
 
       :ok = Cluster.partition(c, [[one, two], [three], [four]])
 
@@ -107,43 +106,47 @@ defmodule AutopgoClusterTest do
       end)
 
       :timer.sleep(5000)
-      
-      [l1, l2] = 
-      [one, two]
-      |> Enum.map(fn member ->
-        {:ok, log} = Cluster.log(member)
-        log
-      end)
+
+      [l1, l2] =
+        [one, two]
+        |> Enum.map(fn member ->
+          {:ok, log} = Cluster.log(member)
+          log
+        end)
+
       IO.puts("Log 1: #{l1}")
       IO.puts("Log 2: #{l2}")
 
-      [looping_controller_node, looping_controller_node] = [one, two]
-      |> Enum.map(fn node -> 
-        Cluster.call(node, fn ->
-          Swarm.whereis_name(:looping_controller) 
-          |> :erlang.node()
+      [looping_controller_node, looping_controller_node] =
+        [one, two]
+        |> Enum.map(fn node ->
+          Cluster.call(node, fn ->
+            Swarm.whereis_name(:looping_controller)
+            |> :erlang.node()
+          end)
         end)
-      end)
 
       assert Enum.member?([one, two], looping_controller_node)
 
-      nodes = [one, two]
-      |> Enum.map(fn node -> 
-        Cluster.call(node, fn ->
-          Node.list()
+      nodes =
+        [one, two]
+        |> Enum.map(fn node ->
+          Cluster.call(node, fn ->
+            Node.list()
+          end)
         end)
-      end)
-      |> List.flatten()
-      |> Enum.sort()
+        |> List.flatten()
+        |> Enum.sort()
 
       assert nodes == [one, two]
 
       :ok = Cluster.stop_node(c, one)
 
-      {node_list, looping_controller_node} = Cluster.call(two, fn ->
-        {Node.list(), Swarm.whereis_name(:looping_controller) |> :erlang.node()}
-      end)
-      |> dbg()
+      {node_list, looping_controller_node} =
+        Cluster.call(two, fn ->
+          {Node.list(), Swarm.whereis_name(:looping_controller) |> :erlang.node()}
+        end)
+        |> dbg()
 
       assert node_list == []
       assert looping_controller_node == two

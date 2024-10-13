@@ -10,7 +10,7 @@ config :autopgo,
   profile_url: "http://localhost:8081/debug/pprof/profile?seconds=14",
   liveness_url: "http://localhost:8081/check",
   readiness_url: "http://localhost:8081/check",
-  fake_memory_monitor: true,
+  memory_monitor: "fake",
   port: 4001,
   first_profile_in_seconds: 3,
   clustering: :local
