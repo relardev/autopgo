@@ -86,8 +86,8 @@ defmodule Autopgo.BinaryStore do
 
   def handle_call({:write_binary, data}, _from, state) do
     Logger.info("Writing new binary to #{state.binary_path}_new")
-    :ok = File.write("#{state.binary_path}_new", data)
-    :ok = File.chmod("#{state.binary_path}_new", 0o755)
+    File.write!("#{state.binary_path}_new", data)
+    File.chmod!("#{state.binary_path}_new", 0o755)
     {:reply, :ok, %{state | last_binary_update: DateTime.utc_now()}}
   end
 
@@ -127,14 +127,8 @@ defmodule Autopgo.BinaryStoreDistributed do
   require Logger
 
   def distribute_binary(data) do
-    Logger.info("Distributing the binary")
-
-    nodes = Node.list()
-
-    Enum.each(nodes, fn node ->
-      Logger.info("Distributing binary to #{node}")
-      :rpc.call(node, Autopgo.BinaryStore, :write_binary, [data])
-    end)
+    Logger.info("Distributing binary to OTHER nodes")
+    GenServer.multi_call(Node.list(), __MODULE__, {:write_binary, data})
   end
 
   def get_newest_binary(binary_path) do

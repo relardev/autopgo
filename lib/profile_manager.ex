@@ -51,10 +51,7 @@ defmodule Autopgo.ProfileManager do
     Logger.info("Sending profile to #{node}")
     source_stream = File.stream!(state.default_pprof_path, 2048)
 
-    :ok =
-      :erpc.call(node, Autopgo.ProfileManager, :receive_stream, [
-        source_stream
-      ])
+    :ok = GenServer.call({__MODULE__, node}, {:receive_stream, source_stream})
 
     {:reply, :ok, state}
   end

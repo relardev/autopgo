@@ -124,14 +124,11 @@ defmodule Autopgo.LoopingController do
       end
     end
 
-    nodes = [Node.self() | Node.list()]
-
-    Enum.each(nodes, fn node ->
-      Logger.info("Restarting autopgo on #{node}")
-      :rpc.call(node, Autopgo.Worker, :restart, [restart_callback])
-    end)
+    Autopgo.Worker.restart_all(restart_callback)
 
     timer_cancel = Process.send_after(self(), :done, 60 * 1000)
+
+    nodes = [Node.self() | Node.list()]
 
     {:noreply,
      %{
