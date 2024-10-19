@@ -189,7 +189,7 @@ defmodule Autopgo.LoopingController do
   end
 
   defp compile() do
-    node = select_node()
+    node = Autopgo.MemoryMonitor.select_node_with_lowest_memory_usage()
     Logger.info("Compiling on #{node}")
 
     Autopgo.ProfileManager.send_profile(node)
@@ -200,24 +200,5 @@ defmodule Autopgo.LoopingController do
       :compile_and_distribute,
       []
     )
-  end
-
-  defp select_node() do
-    nodes = [Node.self() | Node.list()]
-
-    {node, free_mem} =
-      Enum.map(nodes, fn node ->
-        {
-          node,
-          :rpc.call(node, Autopgo.MemoryMonitor, :free, [])
-        }
-      end)
-      |> Enum.sort_by(&elem(&1, 1))
-      |> Enum.reverse()
-      |> hd()
-
-    Logger.info("Selected node: #{inspect(node)}, free mem: #{inspect(free_mem)}")
-
-    node
   end
 end

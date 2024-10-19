@@ -1,34 +1,52 @@
 defmodule Autopgo.MemoryMonitor do
   use GenServer
 
+  require Logger
+
   def free do
     GenServer.call(__MODULE__, :free)
+  end
+
+  def select_node_with_lowest_memory_usage() do
+    {replies, bad_nodes} =
+      GenServer.multi_call(
+        __MODULE__,
+        :free
+      )
+
+    {node, free_mem} = Enum.max_by(replies, fn {_, free} -> free end)
+
+    Logger.info("Selected node #{node} with #{free_mem}MB free memory")
+
+    if length(bad_nodes) > 0 do
+      Logger.info("BAD NODES: #{bad_nodes}")
+    end
+
+    node
   end
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
-  def init(args) do
-    case Map.get(args, :fake, false) do
-      true ->
-        {:ok,
-         %{
-           fake: true,
-           response: 700
-         }}
+  def init(%{fake: true}) do
+    {:ok,
+     %{
+       fake: true,
+       response: 700
+     }}
+  end
 
-      false ->
-        available_memory_file = find_first_existing(args.available_memory_files)
-        used_memory_file = find_first_existing(args.used_memory_files)
+  def init(%{fake: false} = args) do
+    available_memory_file = find_first_existing(args.available_memory_files)
+    used_memory_file = find_first_existing(args.used_memory_files)
 
-        {:ok,
-         %{
-           available_memory: mem_from_file(available_memory_file),
-           used_memory_file: used_memory_file,
-           fake: false
-         }}
-    end
+    {:ok,
+     %{
+       available_memory: mem_from_file(available_memory_file),
+       used_memory_file: used_memory_file,
+       fake: false
+     }}
   end
 
   defp find_first_existing(files) do
@@ -46,7 +64,8 @@ defmodule Autopgo.MemoryMonitor do
   end
 
   def handle_call(:free, _from, %{fake: true} = state) do
-    {:reply, state.response, state}
+    result = state.response + :rand.uniform(200)
+    {:reply, result, state}
   end
 
   def handle_call(
@@ -66,7 +85,5 @@ defmodule Autopgo.MemoryMonitor do
     |> byte_to_mb()
   end
 
-  def byte_to_mb(bytes) do
-    bytes / 1024 / 1024
-  end
+  def byte_to_mb(bytes), do: bytes / 1024 / 1024
 end
