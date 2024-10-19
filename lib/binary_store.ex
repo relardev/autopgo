@@ -15,10 +15,11 @@ defmodule Autopgo.BinaryStore do
       try do
         GenServer.call(
           {__MODULE__, node},
-          {:read_binary, destination_stream}
+          {:read_binary, destination_stream},
+          60_000
         )
       catch
-        exception -> {:error, "Failed to pull binary exc - #{inspect(exception)}"}
+        type, value -> {:error, "Failed to pull binary exc - #{inspect(type)}, #{inspect(value)}"}
       end
 
     case result do
@@ -27,9 +28,9 @@ defmodule Autopgo.BinaryStore do
         File.chmod!(into, 0o755)
         :ok
 
-      :error ->
+      {:error, reason} ->
         File.rm(into)
-        {:error, "Failed to pull binary"}
+        {:error, "Failed to pull binary, #{reason}"}
     end
   end
 
@@ -98,9 +99,9 @@ defmodule Autopgo.BinaryStore do
       Enum.into(source_stream, destination_stream)
       {:reply, :ok, state}
     catch
-      e ->
-        Logger.error("Failed to read binary - #{inspect(e)}")
-        {:reply, :error, state}
+      type, value ->
+        Logger.error("Failed to read binary exc - #{inspect(type)}, #{inspect(value)}")
+        {:reply, {:error, {type, value}}, state}
     end
   end
 

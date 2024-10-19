@@ -39,7 +39,6 @@ defmodule Autopgo.Application do
     children =
       cluster(Application.get_env(:autopgo, :clustering, :dns)) ++
         [
-          PoolSupervisor,
           {Autopgo.BinaryStore,
            %{
              run_dir: Application.get_env(:autopgo, :run_dir),

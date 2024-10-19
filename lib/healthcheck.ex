@@ -4,11 +4,11 @@ defmodule Healthchecks do
   require Logger
 
   def liveness do
-    GenServer.call(__MODULE__, :liveness)
+    GenServer.call(__MODULE__, :liveness, 15_000)
   end
 
   def readiness do
-    GenServer.call(__MODULE__, :readiness)
+    GenServer.call(__MODULE__, :readiness, 15_000)
   end
 
   def shutting_down(notify_fn) do
