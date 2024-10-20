@@ -146,7 +146,6 @@ defmodule AutopgoClusterTest do
         Cluster.call(two, fn ->
           {Node.list(), Swarm.whereis_name(:looping_controller) |> :erlang.node()}
         end)
-        |> dbg()
 
       assert node_list == []
       assert looping_controller_node == two
@@ -155,7 +154,6 @@ defmodule AutopgoClusterTest do
       |> Enum.map(fn member ->
         Cluster.log(member)
       end)
-      |> dbg()
     end
   end
 end

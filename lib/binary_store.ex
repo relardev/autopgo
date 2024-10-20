@@ -38,12 +38,14 @@ defmodule Autopgo.BinaryStore do
     GenServer.call(__MODULE__, :binary_path)
   end
 
-  def get_last_binary_update(node) do
-    try do
-      GenServer.call({__MODULE__, node}, :get_last_binary_update)
-    rescue
-      _ -> nil
+  def get_last_binary_updates() do
+    {result, bad_nodes} = GenServer.multi_call(Node.list(), __MODULE__, :get_last_binary_update)
+
+    if length(bad_nodes) > 0 do
+      Logger.info("get_last_binary_updates BAD NODES: #{bad_nodes}")
     end
+
+    result
   end
 
   def start_link(args) do
@@ -78,7 +80,7 @@ defmodule Autopgo.BinaryStore do
 
     if there_is_a_new_binary do
       Logger.info("New binary found, moving it to #{state.binary_path}")
-      :ok = File.rename("#{state.binary_path}_new", state.binary_path)
+      File.rename!("#{state.binary_path}_new", state.binary_path)
     end
 
     {:reply, state.binary_path, state}
@@ -128,7 +130,8 @@ defmodule Autopgo.BinaryStoreDistributed do
 
   def distribute_binary(data) do
     Logger.info("Distributing binary to OTHER nodes")
-    GenServer.multi_call(Node.list(), __MODULE__, {:write_binary, data})
+
+    GenServer.multi_call(Node.list(), Autopgo.BinaryStore, {:write_binary, data})
   end
 
   def get_newest_binary(binary_path) do
@@ -145,17 +148,15 @@ defmodule Autopgo.BinaryStoreDistributed do
     end
   end
 
-  defp find_newest_binary do
+  def find_newest_binary do
     nodes = Node.list()
 
     if length(nodes) > 0 do
-      Enum.map(nodes, fn node ->
-        {Autopgo.BinaryStore.get_last_binary_update(node), node}
-      end)
-      |> Enum.filter(fn {datetime, _} -> datetime != nil end)
-      |> Enum.max_by(&elem(&1, 0), DateTime, fn -> :error end)
+      Autopgo.BinaryStore.get_last_binary_updates()
+      |> Enum.filter(fn {_, datetime} -> datetime != nil end)
+      |> Enum.max_by(&elem(&1, 1), DateTime, fn -> :error end)
       |> case do
-        {_datetime, node} ->
+        {node, _datetime} ->
           {:ok, node}
 
         :error ->
