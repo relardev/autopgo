@@ -104,6 +104,17 @@ defmodule Autopgo.LoopingController do
     {:noreply, %{state | compile_task: task}}
   end
 
+  def handle_info(
+        {:DOWN, ref, :process, _pid, :shutdown},
+        %{compile_task: %Task{ref: ref}} = state
+      ) do
+    Logger.info("Compilation failed, with :shutdown, retrying")
+
+    task = compile()
+
+    {:noreply, %{state | compile_task: task}}
+  end
+
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{compile_task: %Task{ref: ref}} = state) do
     Logger.info("Compilation failed: #{inspect(reason)}, stopping autopgo")
     {:noreply, state}
