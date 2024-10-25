@@ -108,8 +108,10 @@ defmodule Autopgo.BinaryStore do
   end
 
   def handle_info(:update_binary, state) do
-    next_profile = Autopgo.LoopingController.next_profile_at()
-    diff = DateTime.diff(next_profile, DateTime.utc_now(), :minute)
+    diff =
+      Highlander.pid(Autopgo.LoopingController)
+      |> Autopgo.LoopingController.next_profile_at()
+      |> DateTime.diff(DateTime.utc_now(), :minute)
 
     if diff > state.retry_check_for_binary_minutes do
       Logger.info("Profile in more than 15 min, checking for new binary")

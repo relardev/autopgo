@@ -1,10 +1,15 @@
 defmodule Autopgo.LoopingController do
-  use Watchdog.SingletonGenServer
+  use GenServer
 
   require Logger
 
-  def initial_state do
+  def start_link(arg) do
+    GenServer.start_link(__MODULE__, arg, name: __MODULE__)
+  end
+
+  def init(_arg) do
     Logger.info("Initializing state")
+    Process.flag(:trap_exit, true)
     now = DateTime.utc_now()
     first_profile_in_seconds = Application.get_env(:autopgo, :first_profile_in_seconds, 7 * 60)
     next_profile_at = DateTime.add(now, first_profile_in_seconds)
@@ -14,42 +19,39 @@ defmodule Autopgo.LoopingController do
     recompile_interval_seconds =
       Application.get_env(:autopgo, :recompile_interval_seconds, 60 * 60)
 
-    %{
-      start: now,
-      next_profile_at: next_profile_at,
-      recompile_interval_seconds: recompile_interval_seconds,
-      retry_interval_ms: 1000,
-      tick_ms: tick_ms,
-      machine_state: :waiting,
-      restarts_remaining: 0,
-      restart_timer_cancel: nil,
-      compile_task: nil
-    }
+    Process.send_after(self(), :tick, tick_ms)
+
+    {:ok,
+     %{
+       start: now,
+       next_profile_at: next_profile_at,
+       recompile_interval_seconds: recompile_interval_seconds,
+       retry_interval_ms: 1000,
+       tick_ms: tick_ms,
+       machine_state: :waiting,
+       restarts_remaining: 0,
+       restart_timer_cancel: nil,
+       compile_task: nil
+     }}
   end
 
-  def import_state(initial_state, import_state) do
-    state = select_state(initial_state, import_state)
-    Logger.info("Imported state start: #{inspect(state.start)}")
-    %{state | machine_state: :waiting}
+  def terminate(_reason, state) do
+    # TODO
+
+    Highlander.pid(__MODULE__)
+    |> GenServer.cast({:merge_state, state})
+
+    Logger.info("Terminating LoopingController at node: #{Node.self()}, sedning state to ")
+    :ok
   end
 
-  defp select_state(state1, state2) do
-    if DateTime.compare(state1.start, state2.start) == :lt do
-      Logger.info("Selecting earlier state")
-      state1
-    else
-      Logger.info("Selecting later state")
-      state2
-    end
+  def next_profile_at(pid) do
+    GenServer.call(pid, :next_profile_at)
   end
 
-  def setup(state, _meta) do
-    Process.send_after(self(), :tick, state.tick_ms)
-    {:ok, state}
-  end
-
-  def next_profile_at do
-    GenServer.call({:global, __MODULE__}, :next_profile_at)
+  def handle_cast({:merge_state, other_state}, state) do
+    state = select_state(state, other_state)
+    {:noreply, state}
   end
 
   def handle_info(:tick, %{machine_state: :busy} = state) do
@@ -208,5 +210,15 @@ defmodule Autopgo.LoopingController do
       :compile_and_distribute,
       []
     )
+  end
+
+  defp select_state(state1, state2) do
+    if DateTime.compare(state1.start, state2.start) == :lt do
+      Logger.info("Selecting earlier state")
+      state1
+    else
+      Logger.info("Selecting later state")
+      state2
+    end
   end
 end
