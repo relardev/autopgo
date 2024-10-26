@@ -60,6 +60,8 @@ defmodule Highlander do
   end
 
   defp register(state) do
+    :global.sync()
+
     case :global.register_name(name(state), self(), &handle_conflict/3) do
       :yes -> start(state)
       :no -> monitor(state)

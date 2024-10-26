@@ -21,27 +21,36 @@ defmodule Autopgo.LoopingController do
 
     Process.send_after(self(), :tick, tick_ms)
 
-    {:ok,
-     %{
-       start: now,
-       next_profile_at: next_profile_at,
-       recompile_interval_seconds: recompile_interval_seconds,
-       retry_interval_ms: 1000,
-       tick_ms: tick_ms,
-       machine_state: :waiting,
-       restarts_remaining: 0,
-       restart_timer_cancel: nil,
-       compile_task: nil
-     }}
+    state =
+      case Autopgo.LoopingController.StateKeeper.get_best_state() do
+        nil ->
+          %{
+            start: now,
+            next_profile_at: next_profile_at,
+            recompile_interval_seconds: recompile_interval_seconds,
+            retry_interval_ms: 1000,
+            tick_ms: tick_ms,
+            machine_state: :waiting,
+            restarts_remaining: 0,
+            restart_timer_cancel: nil,
+            compile_task: nil
+          }
+
+        state ->
+          Logger.info("Resuming from previous state, started at #{state.start}")
+          %{state | machine_state: :waiting}
+      end
+
+    {:ok, state}
   end
 
   def terminate(_reason, state) do
-    # TODO
+    pid = Highlander.pid(__MODULE__)
 
-    Highlander.pid(__MODULE__)
-    |> GenServer.cast({:merge_state, state})
+    GenServer.cast(pid, {:merge_state, state})
 
-    Logger.info("Terminating LoopingController at node: #{Node.self()}, sedning state to ")
+    Logger.info("Terminating LoopingController, sending state to #{node(pid)}")
+
     :ok
   end
 
@@ -50,7 +59,7 @@ defmodule Autopgo.LoopingController do
   end
 
   def handle_cast({:merge_state, other_state}, state) do
-    state = select_state(state, other_state)
+    state = Autopgo.LoopingController.State.merge(state, other_state)
     {:noreply, state}
   end
 
@@ -72,6 +81,8 @@ defmodule Autopgo.LoopingController do
         Process.send_after(self(), :tick, state.tick_ms)
         :waiting
       end
+
+    Autopgo.LoopingController.StateKeeper.put_state_everywhere(state)
 
     {:noreply, %{state | machine_state: machine_state}}
   end
@@ -211,13 +222,58 @@ defmodule Autopgo.LoopingController do
       []
     )
   end
+end
 
-  defp select_state(state1, state2) do
+defmodule Autopgo.LoopingController.StateKeeper do
+  use GenServer
+
+  def get_best_state() do
+    {replies, _bad_nodes} = GenServer.multi_call(__MODULE__, :get_state)
+
+    replies
+    |> Enum.reject(fn {_, state} -> state == nil end)
+    |> Enum.min_by(fn {_, state} -> state.start end, fn -> nil end)
+    |> case do
+      {_, state} -> state
+      nil -> nil
+    end
+  end
+
+  def put_state_everywhere(state) do
+    GenServer.abcast(__MODULE__, {:put_state, state})
+  end
+
+  def get_state(pid) do
+    GenServer.call(pid, :get_state)
+  end
+
+  def start_link(arg) do
+    GenServer.start_link(__MODULE__, arg, name: __MODULE__)
+  end
+
+  def init(_arg) do
+    {:ok, nil}
+  end
+
+  def handle_cast({:put_state, new_state}, nil) do
+    {:noreply, new_state}
+  end
+
+  def handle_cast({:put_state, new_state}, state) do
+    state = Autopgo.LoopingController.State.merge(state, new_state)
+    {:noreply, state}
+  end
+
+  def handle_call(:get_state, _from, state) do
+    {:reply, state, state}
+  end
+end
+
+defmodule Autopgo.LoopingController.State do
+  def merge(state1, state2) do
     if DateTime.compare(state1.start, state2.start) == :lt do
-      Logger.info("Selecting earlier state")
       state1
     else
-      Logger.info("Selecting later state")
       state2
     end
   end
