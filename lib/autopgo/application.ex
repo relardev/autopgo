@@ -71,9 +71,9 @@ defmodule Autopgo.Application do
            }},
           {Autopgo.Worker, %{}},
           {Task.Supervisor, name: Autopgo.Compilation.TaskSupervisor},
-          Autopgo.WebController,
-          Autopgo.LoopingController.StateKeeper,
-          {Highlander, Autopgo.LoopingController},
+          {Highlander, Autopgo.Scheduler},
+          # Autopgo.LoopingController.StateKeeper,
+          # {Highlander, Autopgo.LoopingController},
           {Bandit, plug: ServerPlug, port: Application.get_env(:autopgo, :port, 4000)}
         ]
 

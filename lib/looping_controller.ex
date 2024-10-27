@@ -87,12 +87,6 @@ defmodule Autopgo.LoopingController do
     {:noreply, %{state | machine_state: machine_state}}
   end
 
-  def handle_info(:retry_profile, state) do
-    Logger.info("Retrying profile gather")
-    ask_for_profile()
-    {:noreply, state}
-  end
-
   def handle_info(:profile_gathered, state) do
     Logger.info("Profile gathered, compiling the app")
 

@@ -32,22 +32,6 @@ defmodule ServerPlug do
     end
   end
 
-  get "/run_with_pgo" do
-    Autopgo.WebController.run_with_pgo()
-
-    conn
-    |> put_resp_content_type("text/plain")
-    |> send_resp(200, "running with pgo")
-  end
-
-  get "/run_base_binary" do
-    Autopgo.WebController.run_base_binary()
-
-    conn
-    |> put_resp_content_type("text/plain")
-    |> send_resp(200, "OK")
-  end
-
   match _ do
     send_resp(conn, 404, "not found")
   end

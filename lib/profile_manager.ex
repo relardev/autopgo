@@ -74,14 +74,11 @@ defmodule Autopgo.ProfileManager do
     File.ls!(state.profile_dir)
     |> Enum.each(fn x -> File.rm(Path.join([state.profile_dir, x])) end)
 
-    nodes = [Node.self() | Node.list()]
-
-    nodes
-    |> Enum.each(fn node ->
-      GenServer.cast({__MODULE__, node}, {:new_profile, self()})
-    end)
+    GenServer.abcast(__MODULE__, {:new_profile, self()})
 
     timer_cancel = Process.send_after(self(), :done, state.profiling_timeout_seconds * 1000)
+
+    nodes = [Node.self() | Node.list()]
 
     {:reply, :ok,
      %{

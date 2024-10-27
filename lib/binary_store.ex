@@ -109,8 +109,7 @@ defmodule Autopgo.BinaryStore do
 
   def handle_info(:update_binary, state) do
     diff =
-      Highlander.pid(Autopgo.LoopingController)
-      |> Autopgo.LoopingController.next_profile_at()
+      Autopgo.Scheduler.next(:hello)
       |> DateTime.diff(DateTime.utc_now(), :minute)
 
     if diff > state.retry_check_for_binary_minutes do

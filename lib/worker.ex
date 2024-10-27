@@ -3,7 +3,7 @@ defmodule Autopgo.Worker do
 
   require Logger
 
-  def restart_all(notify_fn) do
+  def restart_all(notify_fn \\ fn _ -> :ok end) do
     Logger.info("Restarting autopgo on ALL nodes")
     GenServer.abcast(__MODULE__, {:restart, notify_fn})
   end

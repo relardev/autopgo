@@ -39,6 +39,8 @@ defmodule Autopgo.MixProject do
       {:req, "~> 0.5.0"},
       {:toml, "~> 0.7"},
       {:libcluster, "~> 3.3"},
+      {:crontab, "~> 1.0"},
+      {:quantum, "~> 3.0"},
       {:ex_unit_clustered_case, "~> 0.5", only: :test}
     ]
   end
