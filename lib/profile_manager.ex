@@ -4,14 +4,14 @@ defmodule Autopgo.ProfileManager do
   require Logger
 
   def gather_profiles(callback) do
-    GenServer.call(__MODULE__, {:gather_profiles, callback})
+    GenServer.call(__MODULE__, {:gather_profiles, callback}, 15_000)
   end
 
   def send_profile(node) do
     if node == Node.self() do
       Logger.info("Skipping sending profile to self")
     else
-      GenServer.call(__MODULE__, {:send_profile, node})
+      GenServer.call(__MODULE__, {:send_profile, node}, 15_000)
     end
   end
 

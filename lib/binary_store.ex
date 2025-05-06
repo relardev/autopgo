@@ -4,7 +4,7 @@ defmodule Autopgo.BinaryStore do
   require Logger
 
   def bump_last_binary_update() do
-    GenServer.call(__MODULE__, :bump_last_binary_update)
+    GenServer.cast(__MODULE__, :bump_last_binary_update)
   end
 
   def read_binary(node, into) do
@@ -67,8 +67,8 @@ defmodule Autopgo.BinaryStore do
      }}
   end
 
-  def handle_call(:bump_last_binary_update, _from, state) do
-    {:reply, :ok, %{state | last_binary_update: DateTime.utc_now()}}
+  def handle_cast(:bump_last_binary_update, state) do
+    {:noreply, %{state | last_binary_update: DateTime.utc_now()}}
   end
 
   def handle_call(:get_last_binary_update, _from, %{last_binary_update: lbu} = state) do
@@ -109,7 +109,7 @@ defmodule Autopgo.BinaryStore do
 
   def handle_info(:update_binary, state) do
     diff =
-      Autopgo.Scheduler.next(:hello)
+      Autopgo.Scheduler.next(:autopgo)
       |> DateTime.diff(DateTime.utc_now(), :minute)
 
     if diff > state.retry_check_for_binary_minutes do
@@ -132,7 +132,10 @@ defmodule Autopgo.BinaryStoreDistributed do
   def distribute_binary(data) do
     Logger.info("Distributing binary to OTHER nodes")
 
-    GenServer.multi_call(Node.list(), Autopgo.BinaryStore, {:write_binary, data})
+    {_results, bad_nodes} =
+      GenServer.multi_call(Node.list(), Autopgo.BinaryStore, {:write_binary, data}, 5 * 60 * 1000)
+
+    Enum.each(bad_nodes, fn node -> Logger.info("Failed to distribute binary to #{node}") end)
   end
 
   def get_newest_binary(binary_path) do

@@ -51,7 +51,7 @@ func main() {
 
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "tsrtarsworks!!")
+		fmt.Fprintf(w, "hello")
 	})
 	mux.HandleFunc("/kill", func(w http.ResponseWriter, r *http.Request) {
 		panicChan <- nil
@@ -69,7 +69,7 @@ func main() {
 	}()
 
 	<-quit
-	fmt.Println("Pretending to do some cleanup work... for 2 seconds")
+	fmt.Println("Pretending to do some cleanup work... for 5 seconds")
 	time.Sleep(5 * time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -79,7 +79,7 @@ func main() {
 		fmt.Fprintln(os.Stdout, []any{"Error shutting down server: ", err}...)
 		os.Exit(1)
 	}
-	fmt.Println("Pretending to do some cleanup work... for 2 seconds")
+	fmt.Println("Pretending to do some cleanup work... for 5 seconds")
 	time.Sleep(5 * time.Second)
 
 	fmt.Println("Server stopped")
